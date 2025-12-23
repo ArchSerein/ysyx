@@ -40,29 +40,18 @@ void init_wp_pool() {
 WP* new_wp(char *e)
 {
   bool success = true;
-  WP *tmp = (head == NULL ? head : head->next);
-  if(free_ != NULL) {
-    if(head == NULL)
-      head = free_;
-    else  head->next = free_;
-  }
-  else  return NULL;
-  strcpy(free_->str, e);
-  free_->result = expr(e, &success);
-  free_->enable = true;
-  if(success == false)
-  {
+  WP* ret = free_;
+  strcpy(ret->str, e);
+  ret->result = expr(e, &success);
+  ret->enable = true;
+  if(success == false) {
     printf("cal fail\n");
   }
-  free_ = free_->next;
-  if(tmp == NULL)
-  {
-    head->next = tmp;
-  }
-  else {
-    head->next->next = tmp;
-  }
-  return tmp == NULL ? head : head->next;
+  WP* tmp = free_->next;
+  free_->next = head;
+  head = free_;
+  free_ = tmp;
+  return ret;
 }
 
 int free_wp(int NO)
