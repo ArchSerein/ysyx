@@ -34,10 +34,16 @@ void do_syscall(Context *c) {
 
   switch (a[0]) {
     case SYS_exit:
-                  // halt(c->GPRx);
+                  halt(c->GPRx);
+                  #ifdef CONFIG_STRACE
+                    printf("SYS_exit called\n");
+                  #endif // !CONFIG_STRACE
                   sys_execve("/bin/nterm", NULL, NULL);
                   break;
     case SYS_yield:
+                  #ifdef CONFIG_STRACE
+                    printf("sys_yield called\n");
+                  #endif // !CONFIG_STRACE
                   yield();
                   c->GPRx = 0;
                   break;
@@ -47,6 +53,9 @@ void do_syscall(Context *c) {
     case SYS_brk:
                   // malloc(c->GPR2);
                   c->GPRx = 0;
+                  #ifdef CONFIG_STRACE
+                    printf("SYS_brk called: ret value=%d\n", c->GPRx);
+                  #endif // !CONFIG_STRACE
                   break;
     case SYS_open:
                   c->GPRx = fs_open((char *)c->GPR2, c->GPR3, c->GPR4);
@@ -61,10 +70,18 @@ void do_syscall(Context *c) {
                   c->GPRx = fs_lseek(c->GPR2, c->GPR3, c->GPR4);
                   break;
     case SYS_gettimeofday:
+                  #ifdef CONFIG_STRACE
+                    printf("SYS_gettimeofday called: tv=%p, tz=%p, ", (void *)c->GPR2, (void *)c->GPR3);
+                  #endif // !CONFIG_STRACE
                   c->GPRx = sys_gettimeofday((void *)c->GPR2, (void *)c->GPR3);
+                  #ifdef CONFIG_STRACE
+                    printf("ret value=%d\n", c->GPRx);
+                  #endif // !CONFIG_STRACE
                   break;
     case SYS_execve:
-                  printf("execve: %s\n", (const char *)c->GPR2);
+                  #ifdef CONFIG_STRACE
+                    printf("SYS_execve called: pathname=%s\n", (const char *)c->GPR2);
+                  #endif // !CONFIG_STRACE
                   c->GPRx = sys_execve((const char *)c->GPR2, NULL, NULL);
                   break;
     default: panic("Unhandled syscall ID = %d", a[0]);

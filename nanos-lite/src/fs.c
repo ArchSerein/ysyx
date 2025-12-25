@@ -32,7 +32,7 @@ extern size_t fb_write(const void *buf, size_t offset, size_t len);
 static Finfo file_table[] __attribute__((used)) = {
   [FD_STDIN]  = {"stdin", 0, 0, invalid_read, invalid_write},
   [FD_STDOUT] = {"stdout", 0, 0, invalid_read, serial_write},
-  [FD_STDERR] = {"stderr", 0, 0, invalid_read, invalid_write},
+  [FD_STDERR] = {"stderr", 0, 0, invalid_read, serial_write},
   [FD_EVENTS] = {"/dev/events", 0, 0, events_read, invalid_write},
   [FD_DISPINFO] = {"/proc/dispinfo", 0, 0, dispinfo_read, invalid_write},
   [FD_FB] = {"/dev/fb", 0, 0, invalid_read, fb_write},
@@ -57,9 +57,6 @@ fs_open(const char *pathname, int flags, int mode) {
   for (fd = 0; fd < NR_FILES; fd++) {
     if (strcmp(pathname, file_table[fd].name) == 0) {
       disk_offset_start[fd] = file_table[fd].disk_offset;
-      #ifdef CONFIG_STRACE
-        printf("fs_open: open file %s\n", file_table[fd].name);
-      #endif // !CONFIG_STRACE
       return fd;
     }
   }
@@ -72,13 +69,13 @@ fs_lseek(int fd, size_t offset, int whence) {
   switch (whence) {
     case SEEK_SET: disk_offset_start[fd] = file_table[fd].disk_offset + offset; break;
     case SEEK_CUR: disk_offset_start[fd] += offset; break;
-    case SEEK_END: disk_offset_start[fd] = file_table[fd].size + file_table[fd].disk_offset + offset; break;
+    case SEEK_END: disk_offset_start[fd] = file_table[fd].size + file_table[fd].disk_offset; break;
     default: panic("should not reach here");
   }
   #ifdef CONFIG_STRACE
     printf("fs_lseek: change the file offset, current disk_offset->0x%x\n", disk_offset_start[fd]);
   #endif // !CONFIG_STRACE
-  return file_table[fd].disk_offset;
+  return disk_offset_start[fd] - file_table[fd].disk_offset;
 }
 
 extern size_t ramdisk_read(void *buf, size_t offset, size_t len);
@@ -89,6 +86,9 @@ fs_read(int fd, void *buf, size_t len) {
     ret = file_table[fd].read(buf, disk_offset_start[fd], len);
   }
   else {
+    if (len > file_table[fd].size - (disk_offset_start[fd] - file_table[fd].disk_offset)) {
+      len = file_table[fd].size - (disk_offset_start[fd] - file_table[fd].disk_offset);
+    }
     ret = ramdisk_read(buf, disk_offset_start[fd], len);
     fs_lseek(fd, ret, SEEK_CUR);
   }
@@ -107,7 +107,6 @@ fs_write(int fd, const void *buf, size_t len) {
     #ifdef CONFIG_STRACE
       printf("output %d bytes to terminal\n", ret);
     #endif // !CONFIG_STRACE
-    return ret;
   } else {
     ret = ramdisk_write(buf, disk_offset_start[fd], len);
     fs_lseek(fd, ret, SEEK_CUR);
