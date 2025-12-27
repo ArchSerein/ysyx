@@ -25,6 +25,26 @@ void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_
     dstrect_.y = 0;
   }
 
+  // clipping width and height
+  if (dstrect_.x < 0) {
+    srcrect_.x -= dstrect_.x;
+    srcrect_.w += dstrect_.x;
+    dstrect_.x = 0;
+  }
+  if (dstrect_.y < 0) {
+    srcrect_.y -= dstrect_.y;
+    srcrect_.h += dstrect_.y;
+    dstrect_.y = 0;
+  }
+  if (dstrect_.x + srcrect_.w > dst->w) {
+    srcrect_.w = dst->w - dstrect_.x;
+  }
+  if (dstrect_.y + srcrect_.h > dst->h) {
+    srcrect_.h = dst->h - dstrect_.y;
+  }
+
+  if (srcrect_.w <= 0 || srcrect_.h <= 0) return;
+
   uint8_t* src_pixels = src->pixels + srcrect_.y * src->pitch + srcrect_.x * src->format->BytesPerPixel;
   uint8_t* dst_pixels = dst->pixels + dstrect_.y * dst->pitch + dstrect_.x * dst->format->BytesPerPixel;
   for (int i = 0; i < srcrect_.h; i ++) {
@@ -44,6 +64,24 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
     dstrect_.w = dst->w;
     dstrect_.h = dst->h;
   }
+
+  // clipping
+  if (dstrect_.x < 0) {
+    dstrect_.w += dstrect_.x;
+    dstrect_.x = 0;
+  }
+  if (dstrect_.y < 0) {
+    dstrect_.h += dstrect_.y;
+    dstrect_.y = 0;
+  }
+  if (dstrect_.x + dstrect_.w > dst->w) {
+    dstrect_.w = dst->w - dstrect_.x;
+  }
+  if (dstrect_.y + dstrect_.h > dst->h) {
+    dstrect_.h = dst->h - dstrect_.y;
+  }
+  if (dstrect_.w <= 0 || dstrect_.h <= 0) return;
+
   uint8_t *pixels = dst->pixels + dstrect_.y * dst->pitch + dstrect_.x * dst->format->BytesPerPixel;
   for (int i = 0; i < dstrect_.h; i ++) {
     memset(pixels, color, dstrect_.w * dst->format->BytesPerPixel);
