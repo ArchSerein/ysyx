@@ -24,19 +24,16 @@ size_t serial_write(const void *buf, size_t offset, size_t len) {
 
 size_t events_read(void *buf, size_t offset, size_t len) {
   char *ptr = (char *)buf;
-  size_t ret;
-  while(true) {
-    AM_INPUT_KEYBRD_T ev = io_read(AM_INPUT_KEYBRD);
-    if (ev.keycode != AM_KEY_NONE) {
-      // strcpy(ptr, keyname[ev.keycode]);
-      if (ev.keydown) {
-        sprintf(ptr, "kd %s", keyname[ev.keycode]);
-      } else {
-        sprintf(ptr, "ku %s", keyname[ev.keycode]);
-      }
-      ret = strlen(keyname[ev.keycode])+3;
-      break;
+  size_t ret = 0;
+  AM_INPUT_KEYBRD_T ev = io_read(AM_INPUT_KEYBRD);
+  if (ev.keycode != AM_KEY_NONE) {
+    // strcpy(ptr, keyname[ev.keycode]);
+    if (ev.keydown) {
+      sprintf(ptr, "kd %s", keyname[ev.keycode]);
+    } else {
+      sprintf(ptr, "ku %s", keyname[ev.keycode]);
     }
+    ret = strlen(keyname[ev.keycode])+3;
   }
   return ret;
 }
