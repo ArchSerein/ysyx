@@ -74,6 +74,23 @@ cmd_d(char *args) {
   return 0;
 }
 
+static int
+cmd_x(char *args) {
+  int N = atoi(strtok(args, " "));
+  char *addr = strtok(NULL, "");
+  bool success = true;
+  uint32_t result = expr(addr, &success);
+  sprintf(addr, "0x%x", result);
+  paddr_t vaddr = (paddr_t)strtol(addr, NULL, 16);
+  for(int i = 0; i < N; i++)
+  {
+    uint32_t data = vaddr_read((vaddr + 4 * i), 4);
+    printf("addr: 0x%08x->data: 0x%08x\n",vaddr + 4 * i, data);
+  }
+
+  return 0;
+}
+
 #ifdef CONFIG_FTRACE
 static int
 cmd_print(char *args) {
@@ -100,6 +117,7 @@ static struct {
   {"p", "Find the value of the expression EXPR", cmd_p},
   {"w", "Suspends program execution when the value of expression EXPR changes.", cmd_w},
   {"d", "Delete the monitoring point with serial number N.", cmd_d},
+  {"x","Outputs N consecutive 4-bytes in hexadecimal form", cmd_x},
   #ifdef CONFIG_FTRACE
   {"print", "Print the function call stack", cmd_print},
   #endif // CONFIG_FTRACE
