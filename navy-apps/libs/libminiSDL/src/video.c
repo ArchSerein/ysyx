@@ -5,6 +5,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static uint32_t *palette2rgb(uint8_t *pixels, SDL_Palette *palette, int len) {
+  uint32_t *rgb_pixels = malloc(len * sizeof(uint32_t));
+  assert(rgb_pixels);
+  for (int i = 0; i < len; i ++) {
+    SDL_Color color = palette->colors[pixels[i]];
+    rgb_pixels[i] = (color.r << 16) | (color.g << 8) | color.b;
+  }
+  return rgb_pixels;
+}
+
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
   assert(dst && src);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
@@ -84,16 +94,28 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 
   uint8_t *pixels = dst->pixels + dstrect_.y * dst->pitch + dstrect_.x * dst->format->BytesPerPixel;
   for (int i = 0; i < dstrect_.h; i ++) {
-    memset(pixels, color, dstrect_.w * dst->format->BytesPerPixel);
+    if (dst->format->BytesPerPixel == 1) {
+      printf("SDL_FillRect: color=%u\n", color);
+      memset(pixels, (uint8_t)color, dstrect_.w * dst->format->BytesPerPixel);
+    } else {
+      memset(pixels, color, dstrect_.w * dst->format->BytesPerPixel);
+    }
     pixels += dst->pitch;
   }
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
-  if (w == 0 || h == 0)
-    NDL_DrawRect((uint32_t *)s->pixels, x, y, s->w, s->h);
-  else
-    NDL_DrawRect((uint32_t *)s->pixels, x, y, w, h);
+  int weight = w == 0 ? s->w : w;
+  int height = h == 0 ? s->h : h;
+  uint32_t *pixels;
+  if (s->format->palette) {
+    pixels = palette2rgb(s->pixels, s->format->palette, weight * height);
+  } else {
+    pixels = (uint32_t *)s->pixels;
+  }
+  NDL_DrawRect(pixels, x, y, weight, height);
+  if (s->format->palette)
+    free(pixels);
 }
 
 // APIs below are already implemented.

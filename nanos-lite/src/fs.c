@@ -86,8 +86,8 @@ fs_read(int fd, void *buf, size_t len) {
     ret = file_table[fd].read(buf, disk_offset_start[fd], len);
   }
   else {
-    if (len > file_table[fd].size - (disk_offset_start[fd] - file_table[fd].disk_offset)) {
-      len = file_table[fd].size - (disk_offset_start[fd] - file_table[fd].disk_offset);
+    if (disk_offset_start[fd] + len > file_table[fd].disk_offset + file_table[fd].size) {
+      len = file_table[fd].disk_offset + file_table[fd].size - disk_offset_start[fd];
     }
     ret = ramdisk_read(buf, disk_offset_start[fd], len);
     fs_lseek(fd, ret, SEEK_CUR);
