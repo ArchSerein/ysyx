@@ -29,38 +29,25 @@ enum {
 
 static uint8_t *sbuf = NULL;
 static uint32_t *audio_base = NULL;
-static uint32_t used = 0;
-
-static void audio_callback(void *userdata, uint8_t *stream, int len) {
-  int remains = len > used ? len - used : 0;
-  len = len > used ? used : len;
-  SDL_memcpy(stream, sbuf, len);
-  SDL_memset(stream + len, 0, remains);
-  used -= len;
-  for (int i = 0; i < used; i++) {
-    sbuf[i] = sbuf[i + len];
-  }
-}
+static volatile uint32_t used = 0;
 
 static void audio_sbuf_handler(uint32_t offset, int len, bool is_write) {
   used += len;
 }
 
+static void audio_callback(void *userdata, uint8_t *stream, int len) {
+  SDL_memset(stream, 0, len);
+  int remains = len > used ? len - used : 0;
+  len = len > used ? used : len;
+  SDL_memcpy(stream, sbuf, len);
+  SDL_memset(stream + len, 0, remains);
+  used -= len;
+  SDL_memcpy(sbuf, sbuf+len, used);
+}
+
 static void audio_io_handler(uint32_t offset, int len, bool is_write) {
   if (is_write) {
     switch (offset >> 2) {
-      case reg_freq: {
-        // Log("Set audio frequency to %d", audio_base[reg_freq]);
-        break;
-      }
-      case reg_samples: {
-        // Log("Set audio samples to %d", audio_base[reg_samples]);
-        break;
-      }
-      case reg_channels: {
-        // Log("Set audio channels to %d", audio_base[reg_channels]);
-        break;
-      }
       case reg_init: {
         SDL_AudioSpec spec;
         spec.freq = audio_base[reg_freq];
@@ -70,15 +57,10 @@ static void audio_io_handler(uint32_t offset, int len, bool is_write) {
         spec.callback = audio_callback;
         spec.userdata = NULL;
         SDL_InitSubSystem(SDL_INIT_AUDIO);
-        // Log("Initializing audio: freq=%d, channels=%d, samples=%d",
-        //     spec.freq, spec.channels, spec.samples);
-        if (SDL_OpenAudio(&spec, NULL) < 0) {
-          panic("Failed to open audio: %s", SDL_GetError());
-        }
+        SDL_OpenAudio(&spec, NULL);
         SDL_PauseAudio(0);
         break;
       }
-      default: panic("Unhandled audio write offset = 0x%x", offset);
     }
   } else {
     switch (offset >> 2) {
