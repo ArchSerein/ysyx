@@ -216,31 +216,18 @@ bool is_difftest_cycle() {
 #endif
 
 uint32_t get_pc_reg() {
-  #ifdef CONFIG_YSYXSOC
     return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ifu_module__DOT__ifu_pc;
-  #else
-    return top.rootp->ysyxSoCFull__DOT__ifu_module__DOT__ifu_pc;
-  #endif
 }
 
 uint32_t get_inst_reg() {
-  #ifdef CONFIG_YSYXSOC
     return deu_inst;
-  #else
-    return top.rootp->ysyxSoCFull__DOT__rfu_module__DOT__rfu_inst_r;
-  #endif
 }
 
 uint32_t get_reg_val(int index) {
-  #ifdef CONFIG_YSYXSOC
     return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__rf_module__DOT__regfile[index];
-  #else
-    return top.rootp->ysyxSoCFull__DOT__rf_module__DOT__regfile[index];
-  #endif
 }
 
 uint32_t get_csr_val(int addr) {
-  #ifdef CONFIG_YSYXSOC
     switch (addr) {
         case 0x300:
             return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__csr_module__DOT__MSTATUS;
@@ -253,20 +240,6 @@ uint32_t get_csr_val(int addr) {
         default:
             panic("get_csr_val fault addr: %x", addr);
     }
-  #else
-    switch (addr) {
-        case 0x300:
-            return top.rootp->ysyxSoCFull__DOT__csr_module__DOT__MSTATUS;
-        case 0x342:
-            return top.rootp->ysyxSoCFull__DOT__csr_module__DOT__MCAUSE;
-        case 0x305:
-            return top.rootp->ysyxSoCFull__DOT__csr_module__DOT__MTVEC;
-        case 0x341:
-            return top.rootp->ysyxSoCFull__DOT__csr_module__DOT__MEPC;
-        default:
-            panic("get_csr_val fault addr: %x", addr);
-    }
-  #endif
 }
 
 void nvboard_bind_all_pins(TOP_NAME *top);
@@ -338,8 +311,6 @@ extern "C" void stall_count() {
 }
 #endif // CONFIG_TRACE_PERFORMANCE
 
-#ifdef CONFIG_YSYXSOC
-  extern "C" void get_inst(uint32_t inst) {
-    deu_inst = inst;
-  }
-#endif // CONFIG_YSYXSOC
+extern "C" void get_inst(uint32_t inst) {
+  deu_inst = inst;
+}

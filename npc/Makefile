@@ -3,11 +3,7 @@
 
 TOPNAME = ysyxSoCFull
 VCD = ./V$(TOPNAME).vcd
-ifeq ($(ARCH), riscv32e-ysyxsoc)
-	NXDC_FILES = constr/ysyxSoCFull.nxdc
-else
-	NXDC_FILES = constr/top.nxdc
-endif
+NXDC_FILES = constr/ysyxSoCFull.nxdc
 INC_PATH ?= $(NPC_HOME)/include
 ALL ?=
 IMG ?= /home/serein/ysyx/ysyx-workbench/am-kernels/tests/am-tests/build/$(ALL)-riscv32e-ysyxsoc.bin
@@ -17,9 +13,6 @@ VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD --trace --Wno-DECLFILENAME \
 				-O3 --x-assign unique --x-initial fast --noassert --build -cc \
 				--timescale "1ns/1ns" --no-timing --autoflush
-ifeq ($(ARCH), riscv32e-ysyxsoc)
-	VERILATOR_CFLAGS += -DCONFIG_YSYXSOC
-endif
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir
@@ -44,14 +37,9 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 
 # project source
-VSRCS = 
-ifeq ($(ARCH), riscv32e-ysyxsoc)
-	VSRCS += $(shell find $(abspath ../ysyxSoC/perip) -name "*.v")
-	VSRCS += $(shell find $(abspath ../ysyxSoC/build) -name "*.v")
-	VSRCS += $(shell find $(abspath ./vsrc) -name "*.v")
-else
-	VSRCS += $(shell find $(abspath ../riscv32e-npc) -name "*.v" -or -name "*.vh")
-endif
+VSRCS = $(shell find $(abspath ../ysyxSoC/perip) -name "*.v")
+VSRCS += $(shell find $(abspath ../ysyxSoC/build) -name "*.v")
+VSRCS += $(shell find $(abspath ./vsrc) -name "*.v")
 CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 
@@ -62,9 +50,6 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 CXXFLAGS += $(shell llvm-config --cxxflags)
-ifeq ($(ARCH), riscv32e-ysyxsoc)
-	CXXFLAGS += -DCONFIG_YSYXSOC
-endif
 LDFLAGS += -lreadline $(shell llvm-config --libs)
 
 -include $(NPC_HOME)/.config
@@ -72,12 +57,8 @@ ifeq ($(CONFIG_DIFFTEST), y)
 	LDFLAGS += -L/home/serein/ysyx/ysyx-workbench/nemu/build/riscv32-nemu-interpreter-so
 endif
 
-ifeq ($(ARCH), riscv32e-ysyxsoc)
-	INCDIR = +incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/uart16550/rtl	+incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/spi/rtl
-	INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/vsrc
-else
-	INCDIR = +incdir+/home/serein/ysyx/ysyx-workbench/riscv32e-npc
-endif
+INCDIR = +incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/uart16550/rtl	+incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/spi/rtl
+INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/vsrc
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 		@python3 $(NPC_HOME)/trans.py

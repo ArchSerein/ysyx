@@ -24,27 +24,17 @@ uint8_t* psram_to_host(uint32_t paddr) { return psram + paddr; }
 uint8_t* sdram_to_host(uint32_t paddr) { return sdram + paddr; }
 uint8_t* guest_to_host(uint32_t paddr) { return pmem + paddr - CONFIG_MBASE; }
 
-long
-init_mem(char *path)
-{
-    #ifdef CONFIG_YSYXSOC
-        mrom = (uint8_t *)aligned_alloc(32, CONFIG_MROM_SIZE);
-        sram = (uint8_t *)aligned_alloc(32, CONFIG_SRAM_SIZE);
-        flash = (uint8_t *)aligned_alloc(32, CONFIG_FLASH_SIZE);
-        psram = (uint8_t *)aligned_alloc(32, CONFIG_PSRAM_SIZE);
-        sdram = (uint8_t *)aligned_alloc(32, CONFIG_SDRAM_SIZE);
-        if (mrom == NULL || sram == NULL || flash == NULL ||
-            psram == NULL || sdram == NULL) {
-            Log("mem init fail, exit now\n");
-            exit(1);
-        }
-    #else
-        pmem = (uint8_t *)aligned_alloc(32, CONFIG_MEM_SIZE);
-        if (pmem == NULL) {
-          Log("mem init fail, exit now\n");
-          exit(1);
-        }
-    #endif
+long init_mem(char *path) {
+    mrom = (uint8_t *)aligned_alloc(32, CONFIG_MROM_SIZE);
+    sram = (uint8_t *)aligned_alloc(32, CONFIG_SRAM_SIZE);
+    flash = (uint8_t *)aligned_alloc(32, CONFIG_FLASH_SIZE);
+    psram = (uint8_t *)aligned_alloc(32, CONFIG_PSRAM_SIZE);
+    sdram = (uint8_t *)aligned_alloc(32, CONFIG_SDRAM_SIZE);
+    if (mrom == NULL || sram == NULL || flash == NULL ||
+        psram == NULL || sdram == NULL) {
+        Log("mem init fail, exit now\n");
+        exit(1);
+    }
     if(path == NULL)
     {
         printf("No image is given, exit now\n");
@@ -63,11 +53,7 @@ init_mem(char *path)
 
     fseek(fp, 0, SEEK_SET);
     int ret;
-    #ifdef CONFIG_YSYXSOC
-        ret = fread(flash, size, 1, fp);
-    #else
-        ret = fread(pmem, size, 1, fp);
-    #endif
+    ret = fread(flash, size, 1, fp);
     assert(ret == 1);
     Log("load image size: 0x%08lx", size);
 
@@ -77,9 +63,7 @@ init_mem(char *path)
     return size;
 }
 
-extern "C" int
-pmem_read(int raddr)
-{
+extern "C" int pmem_read(int raddr) {
     if (raddr == 0xa0000048)
         return  (int)(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()).count());
@@ -96,12 +80,7 @@ pmem_read(int raddr)
     return data;
 }
 
-extern "C" void
-pmem_write(int waddr, int wdata, char wmask)
-{
-    #ifdef CONFIG_YSYXSOC
-        assert(0);
-    #endif
+extern "C" void pmem_write(int waddr, int wdata, char wmask) {
     if (waddr == 0xa00003f8) {
         #ifdef CONFIG_DIFFTEST
             difftest_skip_ref(1);
@@ -148,9 +127,7 @@ pmem_write(int waddr, int wdata, char wmask)
     #endif // CONFIG_MTRACE
 }
 
-extern "C" int
-inst_read(int vaddr)
-{
+extern "C" int inst_read(int vaddr) {
     uint8_t *paddr = guest_to_host((uint32_t)vaddr);
 
     #ifdef CONFIG_MTRACE
@@ -159,9 +136,7 @@ inst_read(int vaddr)
     return *(uint32_t *)paddr;
 }
 
-uint32_t
-vaddr_read(uint32_t addr, int len)
-{
+extern "C" uint32_t vaddr_read(uint32_t addr, int len) {
     uint8_t *paddr = guest_to_host((uint32_t)addr);
     switch(len)
     {
@@ -257,16 +232,11 @@ extern "C" void sdram_write(int32_t addr, uint8_t mask, int32_t data) {
     }
 }
 
-void
-free() {
-    #ifdef CONFIG_YSYXSOC
-        free(mrom);
-        free(sram);
-        free(flash);
-        free(psram);
-        free(sdram);
-    #else
-        free(pmem);
-    #endif
+void free() {
+    free(mrom);
+    free(sram);
+    free(flash);
+    free(psram);
+    free(sdram);
 }
 

@@ -99,10 +99,8 @@ for (int i = 0; i < n; i++) {
     if (npc_state.state != RUNNING) {
         break;
     }
-    
-    #ifdef CONFIG_YSYXSOC
-      nvboard_update();
-    #endif
+
+    nvboard_update();
     single_cycle(&cur_inst);
     #ifdef CONFIG_TRACE_PERFORMANCE
       cycle_count();
