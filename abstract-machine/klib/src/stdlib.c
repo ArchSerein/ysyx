@@ -5,7 +5,11 @@
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 static unsigned long int next = 1;
 extern Area heap;
+#if !(defined(__ISA_NATIVE__) && defined(__NATIVE_USE_KLIB__))
 extern void *addr;
+#else
+static void *addr = NULL;
+#endif
 
 int rand(void) {
   // RAND_MAX assumed to be 32767
@@ -35,6 +39,7 @@ void *malloc(size_t size) {
   // On native, malloc() will be called during initializaion of C runtime.
   // Therefore do not call panic() here, else it will yield a dead recursion:
   //   panic() -> putchar() -> (glibc) -> malloc() -> panic()
+  void *ret;
 #if !(defined(__ISA_NATIVE__) && defined(__NATIVE_USE_KLIB__))
   // panic("Not implemented");
   
@@ -46,16 +51,30 @@ void *malloc(size_t size) {
   if (size == 0) {
     return addr;
   }
-  void *ret = addr;
+  ret = addr;
   memset(ret, 0, size);
 
   addr += size;
   return ret;
 
 #endif
-  
-  panic("Not implemented");
-  return NULL;
+
+  if (addr == NULL) {
+    addr = heap.start;
+  }
+  if (addr + size >= heap.end) {
+    panic("Not Enough Memory");
+    return NULL;
+  }
+
+  if (size == 0) {
+    return addr;
+  }
+  ret = addr;
+  memset(ret, 0, size);
+
+  addr += size;
+  return ret;
 }
 
 void free(void *ptr) {
