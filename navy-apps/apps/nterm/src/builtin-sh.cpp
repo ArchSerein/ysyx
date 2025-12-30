@@ -22,11 +22,35 @@ static void sh_prompt() {
   sh_printf("sh> ");
 }
 
+static void cmd_echo(char *args) {
+  sh_printf("%s", args);
+}
+
+static struct {
+  const char *name;
+  const char *description;
+  void (*handler) (char *);
+} cmd_table [] = {
+  {"echo", "display a line of text", cmd_echo},
+};
+
+#define ARRLEN(arr) (int)(sizeof(arr) / sizeof(arr[0]))
+#define NR_CMD ARRLEN(cmd_table)
+
 static void sh_handle_cmd(const char *cmd) {
   setenv("PATH", "/bin/", 0);
-  char path[64];
-  memcpy(path, cmd, strlen(cmd));
-  path[strlen(cmd)-1] = '\0';
+  char str[64];
+  size_t str_len = strlen(cmd);
+  memcpy(str, cmd, str_len + 1);
+  char *path = strtok(str, " ");
+  for (int i = 0; i < NR_CMD; i++) {
+    if (strcmp(cmd_table[i].name, path) == 0) {
+      char *arg = strlen(path) > str_len ? NULL : str + strlen(path) + 1;
+      cmd_table[i].handler(arg);
+      return;
+    }
+  }
+  path[strlen(path)-1] = '\0';
   execvp(path, NULL);
 }
 
