@@ -15,6 +15,7 @@ static const char *keyname[256] __attribute__((used)) = {
 };
 
 size_t serial_write(const void *buf, size_t offset, size_t len) {
+  yield();
   size_t i;
   for (i = 0; i < len; i++) {
     putch(((char *)buf)[i]);
@@ -23,6 +24,7 @@ size_t serial_write(const void *buf, size_t offset, size_t len) {
 }
 
 size_t events_read(void *buf, size_t offset, size_t len) {
+  yield();
   char *ptr = (char *)buf;
   size_t ret = 0;
   AM_INPUT_KEYBRD_T ev = io_read(AM_INPUT_KEYBRD);
@@ -50,6 +52,7 @@ struct fb_info {
   uint32_t *pixels;
 };
 size_t fb_write(const void *buf, size_t offset, size_t len) {
+  yield();
   int x, y, w, h;
   struct fb_info *info = (struct fb_info *)buf;
   x = info->x;
