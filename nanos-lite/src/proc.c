@@ -21,8 +21,10 @@ void hello_fun(void *arg) {
 }
 
 void init_proc() {
-  // context_uload(&pcb[0], "/bin/hello", NULL, NULL);
-  context_uload(&pcb[0], "/bin/pal", NULL, NULL);
+  // context_uload(&pcb[0], "/bin/nterm", NULL, NULL);
+  char *argv[] = {"/bin/pal", "--skip", NULL};
+  char *envp[] = { NULL };
+  context_uload(&pcb[0], "/bin/pal", argv, envp);
   context_kload(&pcb[1], hello_fun, (void *)0x2);
   switch_boot_pcb();
   yield();
@@ -53,9 +55,96 @@ void context_kload(PCB *pcb, void *entry, void *arg) {
   pcb->cp = kcontext(stack, entry, arg);
 }
 
+static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
+  #define ALIGN(x, n) ((x) & (~(n)))
+  uintptr_t envp_addr[64] = { 0 };
+  uintptr_t argv_addr[64] = { 0 };
+  int cnt = 3;
+  if (envp != NULL) {
+    for (int i = 0; envp[i] != NULL; i++) {
+      size_t len = strlen(envp[i]) + 1;
+      sp -= len;
+      memcpy((void *)sp, envp[i], len);
+      envp_addr[i] = sp;
+      ++cnt;
+    }
+  }
+  if (argv != NULL) {
+    for (int i = 0; argv[i] != NULL; i++) {
+      size_t len = strlen(argv[i]) + 1;
+      sp -= len;
+      memcpy((void *)sp, argv[i], len);
+      argv_addr[i] = sp;
+      ++cnt;
+    }
+  }
+  uintptr_t base_unalign = sp - cnt * sizeof(uintptr_t);
+  uintptr_t base = ALIGN(base_unalign, 0xf);
+  uintptr_t ret = base;
+
+  base += sizeof(uintptr_t);
+  // argv[i]
+  for (cnt = 0; argv_addr[cnt] != 0; cnt++) {
+    *(uint32_t *)base = argv_addr[cnt];
+    base += sizeof(uintptr_t);
+  }
+  *((uint32_t *)(ret)) = cnt;  // argc
+  *(uint32_t *)base = 0;
+  base += sizeof(uintptr_t);
+  //envp[i]
+  for (int i = 0; envp_addr[i] != 0; i++) {
+    *(uint32_t *)(base) = envp_addr[i];
+    base += sizeof(uintptr_t);
+  }
+  *(uint32_t *)base = 0;
+  base += sizeof(uintptr_t);
+  // Unspecified
+  memset((void *)base, 0, sp - base);
+  return ret;
+}
+
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   extern uintptr_t uload(PCB *pcb, const char *filename);
   uintptr_t entry = uload(pcb, filename);
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
-  pcb->cp->GPRx = (uintptr_t)heap.end;
+  uintptr_t sp = setting((uintptr_t)heap.end, argv, envp);
+  pcb->cp->GPRx = sp;
+
+}
+
+typedef struct PCB_List{
+  PCB *pcb;
+  struct PCB_List *next;
+} LPCB;
+
+static LPCB free_[MAX_NR_PROC];
+static LPCB *list = &free_[0];
+void init_pcb(void) {
+  LPCB *p = list;
+  for (int i = 1; i < MAX_NR_PROC; i++) {
+    p->pcb = &pcb[i-1];
+    p->next = &free_[i];
+    p = p->next;
+  }
+  p->pcb = &pcb[MAX_NR_PROC];
+  p->next = NULL;
+  Log("Initializing free pcb list");
+}
+
+PCB *find_free_pcb() {
+  if (list == NULL)
+    return NULL;
+  LPCB *p = list;
+  list = p->next;
+  return p->pcb;
+}
+
+void recycle_idle_pcb(PCB *pcb) {
+  for (int i = 0; i < MAX_NR_PROC; i++) {
+    if (free_[i].pcb == pcb) {
+      LPCB *p = &free_[i];
+      p->next = list;
+      list = p;
+     }
+  }
 }
