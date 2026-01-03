@@ -22,23 +22,34 @@ extern size_t fs_write(int fd, const void *buf, size_t len);
 extern int fs_close(int fd);
 extern size_t fs_lseek(int fd, size_t offset, int whence);
 
-static int 
+static int
 sys_execve(const char *pathname, char *const argv[], char *const envp[]) {
-  extern void naive_uload(PCB *pcb, const char *filename);
-  naive_uload(NULL, pathname);
+  // extern void naive_uload(PCB *pcb, const char *filename);
+  // naive_uload(NULL, pathname);
+  extern void switch_boot_pcb();
+  if (fs_open(pathname, 0, 0) < 0)
+    return -2;
+  PCB *pcb = find_free_pcb();
+  context_uload(pcb, pathname, argv, envp);
+  pcb = current;
+  switch_boot_pcb();
+  recycle_idle_pcb(pcb);
+  yield();
   return 0;
 }
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
+  char *empty[] = { NULL };
 
   switch (a[0]) {
     case SYS_exit:
-                  halt(c->GPRx);
+                  // halt(c->GPRx);
+                  // recycle_idle_pcb(current);
                   #ifdef CONFIG_STRACE
                     printf("SYS_exit called\n");
                   #endif // !CONFIG_STRACE
-                  sys_execve("/bin/nterm", NULL, NULL);
+                  sys_execve("/bin/nterm", empty, empty);
                   break;
     case SYS_yield:
                   #ifdef CONFIG_STRACE
@@ -82,7 +93,7 @@ void do_syscall(Context *c) {
                   #ifdef CONFIG_STRACE
                     printf("SYS_execve called: pathname=%s\n", (const char *)c->GPR2);
                   #endif // !CONFIG_STRACE
-                  c->GPRx = sys_execve((const char *)c->GPR2, NULL, NULL);
+                  c->GPRx = sys_execve((const char *)c->GPR2, (char **)(c->GPR3), NULL);
                   break;
     default: panic("Unhandled syscall ID = %d", a[0]);
   }

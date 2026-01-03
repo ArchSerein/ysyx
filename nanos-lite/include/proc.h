@@ -20,4 +20,7 @@ extern PCB *current;
 
 void context_uload(PCB *, const char *, char *const [], char *const []);
 void context_kload(PCB *, void *, void *);
+
+PCB *find_free_pcb();
+void recycle_idle_pcb(PCB *pcb);
 #endif

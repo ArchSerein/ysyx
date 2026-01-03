@@ -6,6 +6,7 @@ void init_ramdisk(void);
 void init_irq(void);
 void init_fs(void);
 void init_proc(void);
+void init_pcb(void);
 
 int main() {
   extern const char logo[];
@@ -24,6 +25,8 @@ int main() {
 #endif
 
   init_fs();
+
+  init_pcb();
 
   init_proc();
 

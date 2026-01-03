@@ -14,17 +14,20 @@ void switch_boot_pcb() {
 void hello_fun(void *arg) {
   int j = 1;
   while (1) {
-    Log("Hello World from Nanos-lite with arg '%p' for the %dth time!", (uintptr_t)arg, j);
-    j ++;
-    yield();
+    // Log("Hello World from Nanos-lite with arg '%p' for the %dth time!", (uintptr_t)arg, j);
+    // j ++;
+    while (j++ < 10000) {
+      j = 1;
+      yield();
+    }
   }
 }
 
 void init_proc() {
   // context_uload(&pcb[0], "/bin/nterm", NULL, NULL);
-  char *argv[] = {"/bin/pal", "--skip", NULL};
+  char *argv[] = {"/bin/nterm", NULL, NULL};
   char *envp[] = { NULL };
-  context_uload(&pcb[0], "/bin/pal", argv, envp);
+  context_uload(&pcb[0], "/bin/nterm", argv, envp);
   context_kload(&pcb[1], hello_fun, (void *)0x2);
   switch_boot_pcb();
   yield();
@@ -106,10 +109,10 @@ static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   extern uintptr_t uload(PCB *pcb, const char *filename);
   uintptr_t entry = uload(pcb, filename);
+  void *end = new_page(8);
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
-  uintptr_t sp = setting((uintptr_t)heap.end, argv, envp);
+  uintptr_t sp = setting((uintptr_t)end, argv, envp);
   pcb->cp->GPRx = sp;
-
 }
 
 typedef struct PCB_List{
