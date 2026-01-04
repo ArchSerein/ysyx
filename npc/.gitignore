@@ -11,5 +11,6 @@
 !.gitignore
 !README.md
 !*.txt
+formal-verification/
 build/
 include/
