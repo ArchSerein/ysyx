@@ -67,6 +67,33 @@ void __am_switch(Context *c) {
 }
 
 void map(AddrSpace *as, void *va, void *pa, int prot) {
+  #define PAGEOFFSET (12)
+  #define PPNOFFSET (10)
+  #define IDXMASK (0x3ff)
+  #define SHIFT(level) (PAGEOFFSET + (level) * 10)
+  #define IDX(level, va) (((uint32_t)va >> (SHIFT(level))) & IDXMASK)
+  #define PTE2PA(pte) ((uint32_t)(pte) >> PPNOFFSET << PAGEOFFSET)
+  #define PA2PTE(pa) (((uint32_t)(pa) >> PAGEOFFSET) << PPNOFFSET)
+  if (((uintptr_t)pa & (PGSIZE - 1)) || ((uintptr_t)va & (PGSIZE - 1))) {
+    panic("map address not aligned to page size");
+  }
+  PTE *pte;
+  PTE *updir = (PTE *)as->ptr;
+  pte = &updir[IDX(1, va)];
+  if (!(*pte & PTE_V)) {
+    void *p = pgalloc_usr(PGSIZE);
+    memset(p, 0, PGSIZE);
+    *pte = PA2PTE(p) | PTE_V;
+    updir = (PTE *)PTE2PA(*pte);
+  } else {
+    updir = (PTE *)PTE2PA(*pte);
+  }
+  pte = &updir[IDX(0, va)];
+  if (pte == NULL)
+    panic("pte is null");
+  if (*pte & PTE_V)
+    panic("remap a mapped virtual address");
+  *pte = PA2PTE(pa) | PTE_V | prot;
 }
 
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {

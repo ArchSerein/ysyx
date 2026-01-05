@@ -18,5 +18,64 @@
 #include <memory/paddr.h>
 
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
+#define LEVELS  (2)
+#define PAGEOFFSET (12)
+#define PPNOFFSET (10)
+#define IDXMASK (0x3ff)
+#define PPNMASK ((0x001 << 22) - 1)
+#define SHIFT(level) (PAGEOFFSET + (level) * 10)
+#define IDX(level, va) (((uint32_t)va >> (SHIFT(level))) & IDXMASK)
+#define PTESIZE (4)
+#define PTE_V   (0x001 << 0)
+#define PTE_R   (0x001 << 1)
+#define PTE_W   (0x001 << 2)
+#define PTE_X   (0x001 << 3)
+#define PTE_A   (0x001 << 6)
+#define PTE_D   (0x001 << 7)
+  if ((vaddr >> PAGEOFFSET) != ((vaddr+len) >> PAGEOFFSET))
+    return MEM_RET_CROSS_PAGE;
+  uint32_t ppn = cpu.csr[SATP] & PPNMASK;
+  for (int i = LEVELS-1; i >= 0; i--) {
+    uint32_t a = (ppn << PPNOFFSET) + IDX(i, vaddr) * PTESIZE;
+    uint32_t pte = paddr_read(a,PTESIZE);
+    if (!(pte & PTE_V) || ((pte & (PTE_R | PTE_W)) == PTE_W))
+      return MEM_RET_FAIL;
+    if (pte & (PTE_R | PTE_X)) {
+      switch (type) {
+        case MEM_TYPE_IFETCH:
+          if (!(pte & PTE_X))
+            return MEM_RET_FAIL;
+          break;
+        case MEM_TYPE_READ:
+          if (!(pte & PTE_R))
+            return MEM_RET_FAIL;
+          break;
+        case MEM_TYPE_WRITE:
+          if ((!(pte & (PTE_W))) && (!(pte & PTE_D)))
+            return MEM_RET_FAIL;
+          break;
+      }
+      assert(i == 0); // only 4KB page
+      ppn = pte >> PPNOFFSET;
+      uint32_t mask = (0x1 << LEVELS) - 1;
+      uint32_t vpn = vaddr >> PAGEOFFSET;
+      assert((ppn & mask) == (vpn & mask));
+      if (!(pte & PTE_A))
+        return MEM_RET_FAIL;
+      return (ppn << PPNOFFSET) | MEM_RET_OK;
+    } else {
+      ppn = pte >> PPNOFFSET;
+    }
+  }
   return MEM_RET_FAIL;
+}
+
+int isa_mmu_check(vaddr_t vaddr, int len, int type) {
+  if (cpu.csr[SATP] == 0) {
+    return MMU_DIRECT;
+  } else if (cpu.csr[SATP] & 0x80000000) {  // MODE = Sv32
+    return MMU_TRANSLATE;
+  } else {
+    return MMU_FAIL;
+  }
 }
