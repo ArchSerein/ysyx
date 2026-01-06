@@ -23,7 +23,7 @@ const char *regs[] = {
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 const char *csr_name[] = {
-  "MEPC", "MSTATUS", "MTVEC", "MCAUSE"
+  "MEPC", "MSTATUS", "MTVEC", "MCAUSE", "SATP"
 };
 
 void isa_reg_display() {
@@ -33,7 +33,7 @@ void isa_reg_display() {
   }
   printf("pc\t0x%x\t0x%x\n", cpu.pc, cpu.pc);
   // csrs
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 5; i++) {
     printf("%s\t0x%x\t%d\n", csr_name[i], cpu.csr[i], cpu.csr[i]);
   }
 }

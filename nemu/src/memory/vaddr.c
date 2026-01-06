@@ -19,9 +19,10 @@
 #include <unistd.h>
 
 static paddr_t vaddr2paddr(vaddr_t addr, int len, int mmu_type, int mem_type) {
-#define OFFSET (12)
-#define MASK ((1 << OFFSET) - 1)
-#define PPNCONCATEOFFSET(pg, va) ((pg & (~MASK)) | (va & MASK))
+#define PAGEOFFSET (12)
+#define PPNOFFSET (10)
+#define MASK ((1 << PAGEOFFSET) - 1)
+#define PPNCONCATEOFFSET(pg, va) ((pg >> PPNOFFSET << PAGEOFFSET) | (va & MASK))
   int mem_ret_type = MEM_RET_OK;
   switch (mmu_type) {
     case MMU_DIRECT:  return addr;
@@ -35,7 +36,7 @@ static paddr_t vaddr2paddr(vaddr_t addr, int len, int mmu_type, int mem_type) {
         panic("unimplemented: cross page access at vaddr = " FMT_PADDR, addr);
         return 0;
       default:
-        if (mem_ret_type == MEM_RET_OK)
+        if ((mem_ret_type & MEM_RET_OK) == MEM_RET_OK)
           return PPNCONCATEOFFSET(mem_ret_type, addr);
         else
           panic("Unknown return value from isa_mmu_translate()");

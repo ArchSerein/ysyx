@@ -44,8 +44,7 @@ void do_syscall(Context *c) {
 
   switch (a[0]) {
     case SYS_exit:
-                  // halt(c->GPRx);
-                  // recycle_idle_pcb(current);
+                  halt(c->GPRx);
                   #ifdef CONFIG_STRACE
                     printf("SYS_exit called\n");
                   #endif // !CONFIG_STRACE

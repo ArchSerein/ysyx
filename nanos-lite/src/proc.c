@@ -25,10 +25,10 @@ void hello_fun(void *arg) {
 
 void init_proc() {
   // context_uload(&pcb[0], "/bin/nterm", NULL, NULL);
-  char *argv[] = {"/bin/nterm", NULL, NULL};
+  char *argv[] = {"/bin/dummy", NULL, NULL};
   char *envp[] = { NULL };
-  context_uload(&pcb[0], "/bin/nterm", argv, envp);
-  context_kload(&pcb[1], hello_fun, (void *)0x2);
+  context_uload(&pcb[0], "/bin/dummy", argv, envp);
+  // context_kload(&pcb[1], hello_fun, (void *)0x2);
   switch_boot_pcb();
   yield();
 
@@ -42,7 +42,7 @@ void init_proc() {
 Context* schedule(Context *prev) {
   static int i = 0;
   current->cp = prev;
-  for ( ; i < MAX_NR_PROC; ) {
+  for (int base = i + 1; i != base; ) {
     PCB *next = &pcb[i];
     i = (i + 1) % MAX_NR_PROC;
     if (next->cp != NULL && next->cp != prev) {
@@ -108,8 +108,21 @@ static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
 
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   extern uintptr_t uload(PCB *pcb, const char *filename);
+  #ifdef HAS_VME
+  protect(&pcb->as);
+  #endif
   uintptr_t entry = uload(pcb, filename);
   void *end = new_page(8);
+  #ifdef HAS_VME
+  #define RW_PORT (0x6)
+  // map user stack
+  uintptr_t ustart = (uintptr_t)pcb->as.area.end - STACK_SIZE;
+  uintptr_t uend   = (uintptr_t)pcb->as.area.end;
+  for (uintptr_t i = ustart; i < uend; i += PGSIZE) {
+    void *page = (void *)((uintptr_t)end + (i - ustart));
+    map(&pcb->as, (void *)i, page, RW_PORT);
+  }
+  #endif
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
   uintptr_t sp = setting((uintptr_t)end, argv, envp);
   pcb->cp->GPRx = sp;

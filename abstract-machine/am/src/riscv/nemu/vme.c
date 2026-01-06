@@ -25,6 +25,7 @@ static inline uintptr_t get_satp() {
 }
 
 bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
+  #define RWX_PORT (0xE)
   pgalloc_usr = pgalloc_f;
   pgfree_usr = pgfree_f;
 
@@ -34,7 +35,7 @@ bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
   for (i = 0; i < LENGTH(segments); i ++) {
     void *va = segments[i].start;
     for (; va < segments[i].end; va += PGSIZE) {
-      map(&kas, va, va, 0);
+      map(&kas, va, va, RWX_PORT);
     }
   }
 
@@ -100,5 +101,6 @@ Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   Context *c = (Context *)kstack.end - 1;
   c->mepc = (uintptr_t)entry;
   c->mstatus = 0x1800;
+  c->pdir = as->ptr;
   return c;
 }

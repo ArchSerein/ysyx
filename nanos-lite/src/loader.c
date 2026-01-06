@@ -48,12 +48,34 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   size_t phdr_size = fs_read(fd, phdr, sizeof(Elf_Phdr) * ehdr.e_phnum);
   assert(phdr_size == sizeof(Elf_Phdr) * ehdr.e_phnum);
 
+  size_t bytes_read = 0;
   for (int i = 0; i < ehdr.e_phnum; i++) {
     if (phdr[i].p_type == PT_LOAD) {
       fs_lseek(fd, phdr[i].p_offset, SEEK_SET);
+      #ifdef HAS_VME
+      #define RWX_PROT (0xE)
+      Elf32_Word j = 0;
+      for ( ; j < phdr[i].p_filesz; j += PGSIZE) {
+        bytes_read = phdr[i].p_filesz - j < PGSIZE ? phdr[i].p_filesz - j : PGSIZE;
+        void *pa = new_page(1);
+        map(&pcb->as, (void *)(phdr[i].p_vaddr + j), pa, RWX_PROT);
+        assert(fs_read(fd, pa, bytes_read) == bytes_read);
+        if (bytes_read < PGSIZE) {
+          pa = (void *)((uintptr_t)pa + bytes_read);
+          size_t len = PGSIZE - bytes_read;
+          memset(pa, 0, len);
+        }
+      }
+      for ( ; j < phdr[i].p_memsz; j += PGSIZE) {
+        void *pa = new_page(1);
+        map(&pcb->as, (void *)(phdr[i].p_vaddr + j), pa, RWX_PROT);
+        memset(pa, 0, PGSIZE);
+      }
+      #else
       assert(fs_read(fd, (void *)phdr[i].p_vaddr, phdr[i].p_filesz) == phdr[i].p_filesz);
       if (phdr[i].p_filesz < phdr[i].p_memsz)
         memset((void *)(phdr[i].p_vaddr + phdr[i].p_filesz), 0, phdr[i].p_memsz - phdr[i].p_filesz);
+      #endif
     }
   }
   assert(fs_close(fd) == 0);

@@ -32,11 +32,11 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
 #define PTE_X   (0x001 << 3)
 #define PTE_A   (0x001 << 6)
 #define PTE_D   (0x001 << 7)
-  if ((vaddr >> PAGEOFFSET) != ((vaddr+len) >> PAGEOFFSET))
+  if (((vaddr & PAGE_MASK) + len) > PAGE_SIZE)
     return MEM_RET_CROSS_PAGE;
   uint32_t ppn = cpu.csr[SATP] & PPNMASK;
   for (int i = LEVELS-1; i >= 0; i--) {
-    uint32_t a = (ppn << PPNOFFSET) + IDX(i, vaddr) * PTESIZE;
+    uint32_t a = (ppn << PAGEOFFSET) + IDX(i, vaddr) * PTESIZE;
     uint32_t pte = paddr_read(a,PTESIZE);
     if (!(pte & PTE_V) || ((pte & (PTE_R | PTE_W)) == PTE_W))
       return MEM_RET_FAIL;
@@ -51,17 +51,12 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
             return MEM_RET_FAIL;
           break;
         case MEM_TYPE_WRITE:
-          if ((!(pte & (PTE_W))) && (!(pte & PTE_D)))
+          if (!(pte & PTE_W))
             return MEM_RET_FAIL;
           break;
       }
       assert(i == 0); // only 4KB page
       ppn = pte >> PPNOFFSET;
-      uint32_t mask = (0x1 << LEVELS) - 1;
-      uint32_t vpn = vaddr >> PAGEOFFSET;
-      assert((ppn & mask) == (vpn & mask));
-      if (!(pte & PTE_A))
-        return MEM_RET_FAIL;
       return (ppn << PPNOFFSET) | MEM_RET_OK;
     } else {
       ppn = pte >> PPNOFFSET;
