@@ -14,21 +14,18 @@ void switch_boot_pcb() {
 void hello_fun(void *arg) {
   int j = 1;
   while (1) {
-    // Log("Hello World from Nanos-lite with arg '%p' for the %dth time!", (uintptr_t)arg, j);
-    // j ++;
-    while (j++ < 10000) {
-      j = 1;
-      yield();
-    }
+    Log("Hello World from Nanos-lite with arg '%p' for the %dth time!", (uintptr_t)arg, j);
+    j ++;
+    yield();
   }
 }
 
 void init_proc() {
   // context_uload(&pcb[0], "/bin/nterm", NULL, NULL);
-  char *argv[] = {"/bin/dummy", NULL, NULL};
+  char *argv[] = {"/bin/pal", "--skip", NULL};
   char *envp[] = { NULL };
-  context_uload(&pcb[0], "/bin/dummy", argv, envp);
-  // context_kload(&pcb[1], hello_fun, (void *)0x2);
+  context_uload(&pcb[0], "/bin/pal", argv, envp);
+  context_kload(&pcb[1], hello_fun, (void *)0x2);
   switch_boot_pcb();
   yield();
 
@@ -58,7 +55,7 @@ void context_kload(PCB *pcb, void *entry, void *arg) {
   pcb->cp = kcontext(stack, entry, arg);
 }
 
-static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
+static uintptr_t setting(uintptr_t usp, uintptr_t sp, char *const argv[], char *const envp[]) {
   #define ALIGN(x, n) ((x) & (~(n)))
   uintptr_t envp_addr[64] = { 0 };
   uintptr_t argv_addr[64] = { 0 };
@@ -67,8 +64,9 @@ static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
     for (int i = 0; envp[i] != NULL; i++) {
       size_t len = strlen(envp[i]) + 1;
       sp -= len;
+      usp -= len;
       memcpy((void *)sp, envp[i], len);
-      envp_addr[i] = sp;
+      envp_addr[i] = usp;
       ++cnt;
     }
   }
@@ -76,14 +74,17 @@ static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
     for (int i = 0; argv[i] != NULL; i++) {
       size_t len = strlen(argv[i]) + 1;
       sp -= len;
+      usp -= len;
       memcpy((void *)sp, argv[i], len);
-      argv_addr[i] = sp;
+      argv_addr[i] = usp;
       ++cnt;
     }
   }
-  uintptr_t base_unalign = sp - cnt * sizeof(uintptr_t);
+  uintptr_t base_unalign  = sp - cnt * sizeof(uintptr_t);
   uintptr_t base = ALIGN(base_unalign, 0xf);
-  uintptr_t ret = base;
+
+  uintptr_t ubase_unalign = usp - cnt * sizeof(uintptr_t);
+  uintptr_t ret  = base;
 
   base += sizeof(uintptr_t);
   // argv[i]
@@ -103,7 +104,7 @@ static uintptr_t setting(uintptr_t sp, char *const argv[], char *const envp[]) {
   base += sizeof(uintptr_t);
   // Unspecified
   memset((void *)base, 0, sp - base);
-  return ret;
+  return ALIGN(ubase_unalign, 0xf);
 }
 
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
@@ -119,12 +120,12 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   uintptr_t ustart = (uintptr_t)pcb->as.area.end - STACK_SIZE;
   uintptr_t uend   = (uintptr_t)pcb->as.area.end;
   for (uintptr_t i = ustart; i < uend; i += PGSIZE) {
-    void *page = (void *)((uintptr_t)end + (i - ustart));
-    map(&pcb->as, (void *)i, page, RW_PORT);
+    map(&pcb->as, (void *)i, end, RW_PORT);
+    end = (void *)((uintptr_t)end + PGSIZE);
   }
   #endif
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
-  uintptr_t sp = setting((uintptr_t)end, argv, envp);
+  uintptr_t sp = setting(uend, (uintptr_t)end, argv, envp);
   pcb->cp->GPRx = sp;
 }
 

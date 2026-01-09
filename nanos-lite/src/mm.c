@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <proc.h>
 
 static void *pf = NULL;
 
@@ -22,6 +23,21 @@ void free_page(void *p) {
 
 /* The brk() system call handler. */
 int mm_brk(uintptr_t brk) {
+  #ifdef HAS_VME
+  #define ROUNDUP(a, sz)   ((((uintptr_t)a) + (sz) - 1) & ~((sz) - 1))
+  #define RW_PORT (0x6)
+  uintptr_t new_brk = ROUNDUP(brk, PGSIZE);
+  uintptr_t old_brk = current->max_brk;
+  if (new_brk > old_brk) {
+    int nr_page = (new_brk - old_brk) / PGSIZE;
+    for (int i = 0; i < nr_page; i++) {
+      void *page  = pg_alloc(PGSIZE);
+      void *vaddr = (void *)(old_brk + i * PGSIZE);
+      map(&current->as, vaddr, page, RW_PORT);
+    }
+    current->max_brk = new_brk;
+  }
+  #endif
   return 0;
 }
 

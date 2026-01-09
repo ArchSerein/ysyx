@@ -57,6 +57,9 @@ fs_open(const char *pathname, int flags, int mode) {
   for (fd = 0; fd < NR_FILES; fd++) {
     if (strcmp(pathname, file_table[fd].name) == 0) {
       disk_offset_start[fd] = file_table[fd].disk_offset;
+        #ifdef CONFIG_STRACE
+        printf("fs_open: open the file %s with fd %d\n", pathname, fd);
+        #endif // !CONFIG_STRACE
       return fd;
     }
   }

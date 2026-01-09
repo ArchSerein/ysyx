@@ -37,6 +37,14 @@ sys_execve(const char *pathname, char *const argv[], char *const envp[]) {
   yield();
   return 0;
 }
+static int sys_brk(uintptr_t brk) {
+  extern int mm_brk(uintptr_t brk);
+  int ret = mm_brk(brk);
+  #ifdef CONFIG_STRACE
+    printf("SYS_brk called: ret value=%d, new_brk: 0x%08x\n", ret, brk);
+  #endif // !CONFIG_STRACE
+  return ret;
+}
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -61,11 +69,7 @@ void do_syscall(Context *c) {
                   c->GPRx = fs_write(c->GPR2, (void *)c->GPR3, c->GPR4);
                   break;
     case SYS_brk:
-                  // malloc(c->GPR2);
-                  c->GPRx = 0;
-                  #ifdef CONFIG_STRACE
-                    printf("SYS_brk called: ret value=%d\n", c->GPRx);
-                  #endif // !CONFIG_STRACE
+                  c->GPRx = sys_brk(c->GPR2);
                   break;
     case SYS_open:
                   c->GPRx = fs_open((char *)c->GPR2, c->GPR3, c->GPR4);

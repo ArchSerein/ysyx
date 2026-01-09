@@ -73,10 +73,14 @@ int _write(int fd, void *buf, size_t count) {
 
 extern char end[];
 void *_sbrk(intptr_t increment) {
-  static char *proc_break = end;
-  if (_syscall_(SYS_brk, increment, 0, 0) == 0) {
-    void *ret = proc_break;
-    proc_break += increment;
+  #define ROUNDUP(a, sz)   ((((uint32_t)a) + (sz) - 1) & ~((sz) - 1))
+  #define PGSIZE (4096)
+  static char *proc_break = 0;
+  intptr_t brk = proc_break == 0 ?  (intptr_t)end + increment :
+                                    (intptr_t)proc_break + increment;
+  if (_syscall_(SYS_brk, brk, 0, 0) == 0) {
+    void *ret  = proc_break == 0 ? (void *)end : (void *)proc_break;
+    proc_break = (char *)brk;;
     return (void*)ret;
   }
   return (void*)-1;

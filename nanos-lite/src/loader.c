@@ -48,29 +48,49 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   size_t phdr_size = fs_read(fd, phdr, sizeof(Elf_Phdr) * ehdr.e_phnum);
   assert(phdr_size == sizeof(Elf_Phdr) * ehdr.e_phnum);
 
-  size_t bytes_read = 0;
   for (int i = 0; i < ehdr.e_phnum; i++) {
     if (phdr[i].p_type == PT_LOAD) {
       fs_lseek(fd, phdr[i].p_offset, SEEK_SET);
       #ifdef HAS_VME
       #define RWX_PROT (0xE)
-      Elf32_Word j = 0;
-      for ( ; j < phdr[i].p_filesz; j += PGSIZE) {
-        bytes_read = phdr[i].p_filesz - j < PGSIZE ? phdr[i].p_filesz - j : PGSIZE;
-        void *pa = new_page(1);
-        map(&pcb->as, (void *)(phdr[i].p_vaddr + j), pa, RWX_PROT);
-        assert(fs_read(fd, pa, bytes_read) == bytes_read);
-        if (bytes_read < PGSIZE) {
-          pa = (void *)((uintptr_t)pa + bytes_read);
-          size_t len = PGSIZE - bytes_read;
-          memset(pa, 0, len);
+      #define RW_PROT  (0x6)
+      #define ROUNDDOWN(a, sz) ((((uintptr_t)a)) & ~((sz) - 1))
+
+      uintptr_t vaddr_start = phdr[i].p_vaddr;
+      uintptr_t vaddr_end   = phdr[i].p_vaddr + phdr[i].p_memsz;
+      uintptr_t file_end    = phdr[i].p_vaddr + phdr[i].p_filesz;
+      uintptr_t vpage       = ROUNDDOWN(vaddr_start, PGSIZE);
+
+      for (; vpage < vaddr_end; vpage += PGSIZE) {
+        void *pa        = new_page(1);
+
+        uintptr_t start = (vpage < vaddr_start) ? vaddr_start : vpage;
+        uintptr_t npage = vpage + PGSIZE;
+        uintptr_t end   = (npage < vaddr_end) ? npage : vaddr_end;
+
+        uintptr_t p_off = start - vpage;
+
+        if (vpage < file_end) {
+          map(&pcb->as, (void *)vpage, pa, RWX_PROT);
+          uintptr_t read_end = (file_end < end) ? file_end : end;
+          size_t bytes_read  = read_end - start;
+
+          assert(fs_read(fd, (void *)((uintptr_t)pa + p_off), bytes_read) == bytes_read);
+
+          if (end > file_end) {
+            size_t zero_off   = file_end - vpage;
+            size_t bytes_zero = end - file_end;
+            memset((void *)((uintptr_t)pa + zero_off), 0, bytes_zero);
+          }
+          if (p_off > 0) {
+            memset(pa, 0, p_off);
+          }
+        } else {
+          map(&pcb->as, (void *)vpage, pa, RW_PROT);
+          memset(pa, 0, PGSIZE);
         }
       }
-      for ( ; j < phdr[i].p_memsz; j += PGSIZE) {
-        void *pa = new_page(1);
-        map(&pcb->as, (void *)(phdr[i].p_vaddr + j), pa, RWX_PROT);
-        memset(pa, 0, PGSIZE);
-      }
+      pcb->max_brk = ROUNDUP(vaddr_end, PGSIZE);
       #else
       assert(fs_read(fd, (void *)phdr[i].p_vaddr, phdr[i].p_filesz) == phdr[i].p_filesz);
       if (phdr[i].p_filesz < phdr[i].p_memsz)
