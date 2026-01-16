@@ -21,32 +21,39 @@ void hello_fun(void *arg) {
 }
 
 void init_proc() {
-  // context_uload(&pcb[0], "/bin/nterm", NULL, NULL);
-  char *argv[] = {"/bin/pal", "--skip", NULL};
   char *envp[] = { NULL };
-  context_uload(&pcb[0], "/bin/pal", argv, envp);
-  context_kload(&pcb[1], hello_fun, (void *)0x2);
+  char *argv_0[] = {"/bin/hello", NULL, NULL};
+  char *argv_1[] = {"/bin/nterm", NULL, NULL};
+  PCB *pcb = find_free_pcb();
+  context_uload(pcb, "/bin/hello", argv_0, envp);
+  pcb = find_free_pcb();
+  context_uload(pcb, "/bin/nterm", argv_1, envp);
+  // context_kload(&pcb[2], hello_fun, (void *)0x2);
   switch_boot_pcb();
+  Log("Initializing processes...");
   yield();
 
-  Log("Initializing processes...");
-
-  const char filename[] = "/bin/nterm";
+  // const char filename[] = "/bin/nterm";
   // load program here
-  naive_uload(NULL, filename);
+  // naive_uload(NULL, filename);
 }
 
 Context* schedule(Context *prev) {
-  static int i = 0;
   current->cp = prev;
-  for (int base = i + 1; i != base; ) {
-    PCB *next = &pcb[i];
+
+  static int i = 0;
+  int start_index = i;
+
+  do {
     i = (i + 1) % MAX_NR_PROC;
-    if (next->cp != NULL && next->cp != prev) {
+    PCB *next = &pcb[i];
+
+    if (next->cp != NULL) {
       current = next;
       return next->cp;
     }
-  }
+  } while (i != start_index);
+
   return current->cp;
 }
 
@@ -159,6 +166,7 @@ PCB *find_free_pcb() {
 void recycle_idle_pcb(PCB *pcb) {
   for (int i = 0; i < MAX_NR_PROC; i++) {
     if (free_[i].pcb == pcb) {
+      pcb->cp = NULL; // mark as free, for schedule do not select it
       LPCB *p = &free_[i];
       p->next = list;
       list = p;

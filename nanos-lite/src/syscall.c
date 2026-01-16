@@ -13,6 +13,9 @@ sys_gettimeofday(void *tv, void *tz) {
   if (tz != NULL) {
     // panic("todo: implement gettimeofday");
   }
+  #ifdef CONFIG_STRACE
+    printf("SYS_gettimeofday called: tv=%p, tz=%p, return value: %d\n", tv, tz, 0);
+  #endif // !CONFIG_STRACE
   return 0;
 }
 
@@ -52,7 +55,7 @@ void do_syscall(Context *c) {
 
   switch (a[0]) {
     case SYS_exit:
-                  halt(c->GPRx);
+                  // halt(c->GPRx);
                   #ifdef CONFIG_STRACE
                     printf("SYS_exit called\n");
                   #endif // !CONFIG_STRACE
@@ -84,13 +87,8 @@ void do_syscall(Context *c) {
                   c->GPRx = fs_lseek(c->GPR2, c->GPR3, c->GPR4);
                   break;
     case SYS_gettimeofday:
-                  #ifdef CONFIG_STRACE
-                    printf("SYS_gettimeofday called: tv=%p, tz=%p, ", (void *)c->GPR2, (void *)c->GPR3);
-                  #endif // !CONFIG_STRACE
+                  assert(c->GPR2 != 0);
                   c->GPRx = sys_gettimeofday((void *)c->GPR2, (void *)c->GPR3);
-                  #ifdef CONFIG_STRACE
-                    printf("ret value=%d\n", c->GPRx);
-                  #endif // !CONFIG_STRACE
                   break;
     case SYS_execve:
                   #ifdef CONFIG_STRACE

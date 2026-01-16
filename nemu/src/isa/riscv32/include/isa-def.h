@@ -19,12 +19,14 @@
 #include <common.h>
 
 enum {
-  MEPC = 0, MSTATUS, MTVEC, MCAUSE, SATP
+  MEPC = 0, MSTATUS, MTVEC, MCAUSE, SATP,
+  MSCRATCH, CSR_NUM
 };
 typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
-  word_t csr[5];
+  word_t csr[CSR_NUM];
+  word_t INTR;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 // decode
@@ -35,5 +37,9 @@ typedef struct {
 } MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
 
 // #define isa_mmu_check(vaddr, len, type) (MMU_DIRECT)
+
+#define INTR_TIMER 0x80000007
+#define MIE        (0x1u << 3)
+#define MPIE       (0x1u << 7)
 
 #endif

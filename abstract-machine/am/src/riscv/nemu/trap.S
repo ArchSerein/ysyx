@@ -14,7 +14,7 @@
 
 #define REGS_LO16(f) \
       f( 1)       f( 3) f( 4) f( 5) f( 6) f( 7) f( 8) f( 9) \
-f(10) f(11) f(12) f(13) f(14) f(15)
+      f(11) f(12) f(13) f(14) f(15)
 #ifndef __riscv_e
 #define REGS_HI16(f) \
                                     f(16) f(17) f(18) f(19) \
@@ -31,17 +31,42 @@ f(30) f(31)
 #define PUSH(n) STORE concat(x, n), (n * XLEN)(sp);
 #define POP(n)  LOAD  concat(x, n), (n * XLEN)(sp);
 
-#define CONTEXT_SIZE  ((NR_REGS + 3) * XLEN)
+#define USER 3
+
+#define CONTEXT_SIZE  ((NR_REGS + 6) * XLEN)
 #define OFFSET_SP     ( 2 * XLEN)
+#define OFFSET_A0     (10 * XLEN)
 #define OFFSET_CAUSE  ((NR_REGS + 0) * XLEN)
 #define OFFSET_STATUS ((NR_REGS + 1) * XLEN)
 #define OFFSET_EPC    ((NR_REGS + 2) * XLEN)
+#define OFFSET_NP     ((NR_REGS + 3) * XLEN)
+#define OFFSET_KSP    ((NR_REGS + 4) * XLEN)
 
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:
-  addi sp, sp, -CONTEXT_SIZE
+  csrrw sp, mscratch, sp
+  bnez  sp, user_trap
 
+kernel_trap:
+  csrrw  sp, mscratch, sp
+  addi sp, sp, -CONTEXT_SIZE
+  STORE x0, OFFSET_NP(sp)
+  STORE a0, OFFSET_A0(sp)
+  j     save_context
+
+user_trap:
+  addi sp, sp, -CONTEXT_SIZE
+  STORE a0, OFFSET_A0(sp)
+  li    a0, USER
+  STORE a0, OFFSET_NP(sp)
+  csrr  a0, mscratch
+  STORE a0, OFFSET_SP(sp)
+  addi  a0, sp, CONTEXT_SIZE
+  STORE a0, OFFSET_KSP(sp)
+  csrw  mscratch, zero
+
+save_context:
   MAP(REGS, PUSH)
 
   csrr t0, mcause
@@ -69,5 +94,17 @@ __am_asm_trap:
 
   MAP(REGS, POP)
 
+  LOAD a0, OFFSET_NP(sp)
+  beqz a0, kernel_trap_ret
+
+; user_trap_ret:
+  LOAD a0, OFFSET_KSP(sp)
+  csrw mscratch, a0
+  LOAD a0, OFFSET_A0(sp)
+  LOAD sp, OFFSET_SP(sp)
+  mret
+
+kernel_trap_ret:
+  LOAD a0, OFFSET_A0(sp)
   addi sp, sp, CONTEXT_SIZE
   mret

@@ -7,25 +7,26 @@ static Context* (*user_handler)(Event, Context*) = NULL;
 extern void __am_switch(Context *c);
 extern void __am_get_cur_as(Context *c);
 Context* __am_irq_handle(Context *c) {
+  #define IRQ_TIMER 0x00000007
+  #define MCAUSE_MASK 0x80000000
   __am_get_cur_as(c);
   if (user_handler) {
     Event ev = {0};
-    switch (c->mcause) {
+    switch (c->mcause & (~MCAUSE_MASK)) {
       case 0xb:
-              if (c->GPR1 == -1)
-              {
-                ev.event = EVENT_YIELD;
-                break;
-              } else {
-                ev.event = EVENT_SYSCALL;
-                break;
-              }
+        if (c->GPR1 == -1)
+          ev.event = EVENT_YIELD;
+        else
+          ev.event = EVENT_SYSCALL;
+        c->mepc+= 4;
+        break;
+      case IRQ_TIMER:
+        ev.event = EVENT_IRQ_TIMER;
+        break;
       default:
-              ev.event = EVENT_ERROR;
-              break;
+        ev.event = EVENT_ERROR;
+        break;
     }
-
-    c->mepc += 4;
     c = user_handler(ev, c);
     assert(c != NULL);
   }
@@ -50,7 +51,9 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
 
   c->GPR2 = (uintptr_t)arg;
   c->mepc = (uintptr_t)entry;
-  c->mstatus = 0x1800;
+  c->mstatus = 0x1808;
+  c->mscratch = 0;
+  c->np = 0;  // 0->kernel
   c->pdir = NULL;
   return c;
 }

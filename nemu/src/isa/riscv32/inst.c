@@ -35,6 +35,7 @@ enum {
                           case 0x341: cpu.csr[MEPC] = src1; break; \
                           case 0x305: cpu.csr[MTVEC] = src1; break; \
                           case 0x180: cpu.csr[SATP] = src1; break; \
+                          case 0x340: cpu.csr[MSCRATCH] = src1; break; \
                           default: ;break; \
                       } \
                     } while (0)
@@ -48,6 +49,7 @@ enum {
                           case 0xf11: t = 0x78797379; break;  \
                           case 0xf12: t = 0x017dc6a3;  break;  \
                           case 0x180: t = cpu.csr[SATP]; break; \
+                          case 0x340: t = cpu.csr[MSCRATCH]; break; \
                           default: ; break; \
                       } \
                     } while(0)
@@ -96,7 +98,10 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I, CSRR(); R(rd) = t; CSRW());
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I, CSRR(); R(rd) = t; src1 = t | src1; CSRW());
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(0xb, s->pc));
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = cpu.csr[MEPC]);
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = cpu.csr[MEPC]; \
+                                                                      uint32_t mpie = cpu.csr[MSTATUS] & MPIE;  \
+                                                                      cpu.csr[MSTATUS] = (cpu.csr[MSTATUS] | (mpie >> 4));  \
+                                                                      cpu.csr[MSTATUS] |= MPIE);
   INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, Mw(src1 + imm, 4, src2));
   INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, R(rd) = Mr(src1 + imm, 4));
   INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui    , U, R(rd) = imm);

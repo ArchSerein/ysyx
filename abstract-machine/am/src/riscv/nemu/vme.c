@@ -100,7 +100,9 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   Context *c = (Context *)kstack.end - 1;
   c->mepc = (uintptr_t)entry;
-  c->mstatus = 0x1800;
+  c->mstatus = 0x1808;
+  c->mscratch = (uintptr_t)kstack.end;
+  c->np = 3; // 3->user
   c->pdir = as->ptr;
   return c;
 }
