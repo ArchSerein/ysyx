@@ -1,6 +1,7 @@
 #include <NDL.h>
 #include <SDL.h>
 #include <string.h>
+#include <sdl-helper.h>
 
 #define keyname(k) #k,
 
@@ -15,6 +16,7 @@ int SDL_PushEvent(SDL_Event *ev) {
 }
 
 int SDL_PollEvent(SDL_Event *ev) {
+  CallbackHelper();
   char buf[64];
   if (NDL_PollEvent(buf, sizeof(buf)) == 0)
     return 0;
@@ -38,6 +40,7 @@ int SDL_PollEvent(SDL_Event *ev) {
 }
 
 int SDL_WaitEvent(SDL_Event *event) {
+  CallbackHelper();
   char buf[64];
   while(NDL_PollEvent(buf, sizeof(buf)) == 0)
     ;
@@ -65,6 +68,7 @@ int SDL_PeepEvents(SDL_Event *ev, int numevents, int action, uint32_t mask) {
 }
 
 uint8_t* SDL_GetKeyState(int *numkeys) {
+  CallbackHelper();
   if (numkeys) {
     *numkeys = sizeof(keyname) / sizeof(keyname[0]);
   }

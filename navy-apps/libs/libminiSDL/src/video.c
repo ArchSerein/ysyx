@@ -1,5 +1,6 @@
 #include <NDL.h>
 #include <sdl-video.h>
+#include <sdl-helper.h>
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@ static uint32_t *palette2rgb(uint8_t *pixels, SDL_Palette *palette, int len) {
 }
 
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
+  CallbackHelper();
   assert(dst && src);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
 
@@ -65,6 +67,7 @@ void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_
 }
 
 void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
+  CallbackHelper();
   SDL_Rect dstrect_;
   if (dstrect) {
     dstrect_ = *dstrect;
@@ -105,6 +108,7 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
+  CallbackHelper();
   int weight = w == 0 ? s->w : w;
   int height = h == 0 ? s->h : h;
   uint32_t *pixels;
@@ -133,6 +137,7 @@ static inline int maskToShift(uint32_t mask) {
 
 SDL_Surface* SDL_CreateRGBSurface(uint32_t flags, int width, int height, int depth,
     uint32_t Rmask, uint32_t Gmask, uint32_t Bmask, uint32_t Amask) {
+  CallbackHelper();
   assert(depth == 8 || depth == 32);
   SDL_Surface *s = malloc(sizeof(SDL_Surface));
   assert(s);
@@ -180,6 +185,7 @@ SDL_Surface* SDL_CreateRGBSurfaceFrom(void *pixels, int width, int height, int d
 }
 
 void SDL_FreeSurface(SDL_Surface *s) {
+  CallbackHelper();
   if (s != NULL) {
     if (s->format != NULL) {
       if (s->format->palette != NULL) {
