@@ -4,6 +4,9 @@
 
 static PCB pcb[MAX_NR_PROC] __attribute__((used)) = {};
 static PCB pcb_boot = {};
+#ifdef CONFIG_FG_PCB
+static PCB *fg_pcb = NULL;
+#endif
 extern void naive_uload(PCB *pcb, const char *filename);
 PCB *current = NULL;
 
@@ -23,21 +26,33 @@ void hello_fun(void *arg) {
 void init_proc() {
   char *envp[] = { NULL };
   char *argv_0[] = {"/bin/hello", NULL, NULL};
-  char *argv_1[] = {"/bin/nterm", NULL, NULL};
+  char *argv_1[] = {"/bin/nslider", NULL, NULL};
+  #ifdef CONFIG_FG_PCB
+  char *argv_2[] = {"/bin/bird", NULL, NULL};
+  char *argv_3[] = {"/bin/pal", "--skip", NULL};
+  context_uload(&pcb[0], "/bin/hello", argv_0, envp);
+  context_uload(&pcb[1], "/bin/bird", argv_2, envp);
+  context_uload(&pcb[2], "/bin/nslider", argv_1, envp);
+  context_uload(&pcb[3], "/bin/pal", argv_3, envp);
+  fg_pcb = &pcb[3];
+  #else
   PCB *pcb = find_free_pcb();
   context_uload(pcb, "/bin/hello", argv_0, envp);
   pcb = find_free_pcb();
-  context_uload(pcb, "/bin/nterm", argv_1, envp);
+  context_uload(pcb, "/bin/nslider", argv_1, envp);
+  #endif
   // context_kload(&pcb[2], hello_fun, (void *)0x2);
   switch_boot_pcb();
   Log("Initializing processes...");
-  yield();
-
-  // const char filename[] = "/bin/nterm";
-  // load program here
-  // naive_uload(NULL, filename);
 }
 
+#ifdef CONFIG_FG_PCB
+Context* schedule(Context *prev) {
+  current->cp = prev;
+  current = (current == fg_pcb) ? &pcb[0] : fg_pcb;
+  return current->cp;
+}
+#else
 Context* schedule(Context *prev) {
   current->cp = prev;
 
@@ -56,6 +71,7 @@ Context* schedule(Context *prev) {
 
   return current->cp;
 }
+#endif
 
 void context_kload(PCB *pcb, void *entry, void *arg) {
   Area stack = RANGE(pcb->stack, pcb->stack + STACK_SIZE);
@@ -173,3 +189,14 @@ void recycle_idle_pcb(PCB *pcb) {
      }
   }
 }
+
+#ifdef CONFIG_FG_PCB
+void switch_current_fg_pcb(uint32_t index) {
+  if (index >= MAX_NR_PROC) {
+    Log("Error: switch_current_fg_pcb index out of range");
+    return;
+  }
+  fg_pcb = &pcb[index];
+  yield();
+}
+#endif

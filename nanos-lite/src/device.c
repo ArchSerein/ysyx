@@ -29,7 +29,29 @@ size_t events_read(void *buf, size_t offset, size_t len) {
   if (ev.keycode != AM_KEY_NONE) {
     // strcpy(ptr, keyname[ev.keycode]);
     if (ev.keydown) {
+      #ifdef CONFIG_FG_PCB
+      uint32_t front_end = 0;
+      switch (ev.keycode) {
+        case AM_KEY_F1:
+          front_end = 1;
+          break;
+        case AM_KEY_F2:
+          front_end = 2;
+          break;
+        case AM_KEY_F3:
+          front_end = 3;
+          break;
+        default:
+          sprintf(ptr, "kd %s", keyname[ev.keycode]);
+          break;
+      }
+      if (front_end != 0) {
+        extern void switch_current_fg_pcb(uint32_t);
+        switch_current_fg_pcb(front_end);
+      }
+      #else
       sprintf(ptr, "kd %s", keyname[ev.keycode]);
+      #endif
     } else {
       sprintf(ptr, "ku %s", keyname[ev.keycode]);
     }
