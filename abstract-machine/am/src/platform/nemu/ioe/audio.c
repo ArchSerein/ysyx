@@ -12,8 +12,8 @@ void __am_audio_init() {
 }
 
 void __am_audio_config(AM_AUDIO_CONFIG_T *cfg) {
-  uint32_t sbuf_size = inl(AUDIO_SBUF_SIZE_ADDR);
-  cfg->bufsize = (int)sbuf_size;
+  int sbuf_size = inl(AUDIO_SBUF_SIZE_ADDR);
+  cfg->bufsize = sbuf_size;
   cfg->present = true;
 }
 
@@ -28,8 +28,8 @@ void __am_audio_ctrl(AM_AUDIO_CTRL_T *ctrl) {
 }
 
 void __am_audio_status(AM_AUDIO_STATUS_T *stat) {
-  uint32_t count = inl(AUDIO_COUNT_ADDR);
-  stat->count = (int)count;
+  int count = inl(AUDIO_COUNT_ADDR);
+  stat->count = count;
 }
 
 void __am_audio_play(AM_AUDIO_PLAY_T *ctl) {
@@ -37,15 +37,22 @@ void __am_audio_play(AM_AUDIO_PLAY_T *ctl) {
   uint8_t *src = (uint8_t *)buf.start;
   uint32_t size = (uint32_t)(buf.end - buf.start);
   uint32_t sbuf_size = inl(AUDIO_SBUF_SIZE_ADDR);
+  outl(AUDIO_INIT_ADDR, 3);
   uint32_t count = inl(AUDIO_COUNT_ADDR);
-  while (size + count >= sbuf_size) {
+  // wait until there is enough space in the audio buffer
+  while (size + count >= sbuf_size)
     count = inl(AUDIO_COUNT_ADDR);
-  }
+
+  outl(AUDIO_INIT_ADDR, 2);
+  uint32_t wpos = inl(AUDIO_COUNT_ADDR);
   uint32_t i = 0;
   for (; i + 4 < size; i+=4) {
-    outl(AUDIO_SBUF_ADDR + i + count, *(src + i));
+    uint32_t off = (i + wpos) % sbuf_size;
+    outl(AUDIO_SBUF_ADDR + off, *(uint32_t *)(src + i));
   }
+
   for (; i < size; i++) {
-    outb(AUDIO_SBUF_ADDR + i + count, *(src + i));
+    uint32_t off = (i + wpos) % sbuf_size;
+    outb(AUDIO_SBUF_ADDR + off, *(src + i));
   }
 }

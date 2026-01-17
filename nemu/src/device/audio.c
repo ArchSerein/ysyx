@@ -29,49 +29,72 @@ enum {
 
 static uint8_t *sbuf = NULL;
 static uint32_t *audio_base = NULL;
+static uint8_t   mux = 1;
 static volatile uint32_t used = 0;
+static volatile uint32_t rpos = 0;
+static volatile uint32_t wpos = 0;
 
 static void audio_sbuf_handler(uint32_t offset, int len, bool is_write) {
   used += len;
+  wpos = (wpos + len) % CONFIG_SB_SIZE;
 }
 
 static void audio_callback(void *userdata, uint8_t *stream, int len) {
   SDL_memset(stream, 0, len);
-  int remains = len > used ? len - used : 0;
-  len = len > used ? used : len;
-  SDL_memcpy(stream, sbuf, len);
-  SDL_memset(stream + len, 0, remains);
-  used -= len;
-  SDL_memcpy(sbuf, sbuf+len, used);
+
+  uint32_t need = (uint32_t)len;
+  uint32_t have = used;
+  uint32_t n    = (need < have) ? need : have;
+
+  if (n == 0) return;
+
+  uint32_t first = (rpos + n > CONFIG_SB_SIZE) ?
+                    (CONFIG_SB_SIZE - rpos) : n;
+  SDL_memcpy(stream, sbuf + rpos, first);
+
+  uint32_t second = n - first;
+  if (second > 0)
+    SDL_memcpy(stream + first, sbuf, second);
+
+  rpos = (rpos + n) % CONFIG_SB_SIZE;
+  used -= n;
 }
 
 static void audio_io_handler(uint32_t offset, int len, bool is_write) {
   if (is_write) {
-    switch (offset >> 2) {
-      case reg_init: {
-        SDL_AudioSpec spec;
-        spec.freq = audio_base[reg_freq];
-        spec.format = AUDIO_S16SYS;
-        spec.channels = audio_base[reg_channels];
-        spec.samples = audio_base[reg_samples];
-        spec.callback = audio_callback;
-        spec.userdata = NULL;
-        SDL_InitSubSystem(SDL_INIT_AUDIO);
-        SDL_OpenAudio(&spec, NULL);
-        SDL_PauseAudio(0);
-        break;
-      }
+    if ((offset >> 2) == reg_init && audio_base[reg_init] == 1) {
+      SDL_AudioSpec spec;
+      spec.freq = audio_base[reg_freq];
+      spec.format = AUDIO_S16SYS;
+      spec.channels = audio_base[reg_channels];
+      spec.samples = audio_base[reg_samples];
+      spec.callback = audio_callback;
+      spec.userdata = NULL;
+      int ret = SDL_InitSubSystem(SDL_INIT_AUDIO);
+      if (ret < 0)
+        panic("SDL_InitSubSystem failed: %s", SDL_GetError());
+      ret = SDL_OpenAudio(&spec, NULL);
+      if (ret < 0)
+        panic("SDL_OpenAudio failed: %s", SDL_GetError());
+      SDL_PauseAudio(0);
     }
   } else {
     switch (offset >> 2) {
-      case reg_sbuf_size: {
+      case reg_sbuf_size:
         audio_base[reg_sbuf_size] = CONFIG_SB_SIZE;
         break;
-      }
-      case reg_count: {
-        audio_base[reg_count] = used;
+      case reg_count:
+        if (mux == 1)
+          audio_base[reg_count] = used;
+        else if (mux == 2)
+          audio_base[reg_count] = wpos;
         break;
-      }
+      case reg_init:
+        if (audio_base[reg_init] == 2)
+          mux = 2;
+        else if (audio_base[reg_init] == 3)
+          mux = 1;
+        break;
     }
   }
 }
