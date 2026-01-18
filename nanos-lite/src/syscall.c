@@ -32,11 +32,8 @@ sys_execve(const char *pathname, char *const argv[], char *const envp[]) {
   extern void switch_boot_pcb();
   if (fs_open(pathname, 0, 0) < 0)
     return -2;
-  PCB *pcb = find_free_pcb();
-  context_uload(pcb, pathname, argv, envp);
-  pcb = current;
+  context_uload(current, pathname, argv, envp);
   switch_boot_pcb();
-  recycle_idle_pcb(pcb);
   yield();
   return 0;
 }

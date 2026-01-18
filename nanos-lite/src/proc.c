@@ -166,7 +166,7 @@ void init_pcb(void) {
     p->next = &free_[i];
     p = p->next;
   }
-  p->pcb = &pcb[MAX_NR_PROC];
+  p->pcb = &pcb[MAX_NR_PROC-1];
   p->next = NULL;
   Log("Initializing free pcb list");
 }
