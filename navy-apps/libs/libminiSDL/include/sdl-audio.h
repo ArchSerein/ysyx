@@ -26,4 +26,26 @@ void SDL_MixAudio(uint8_t *dst, uint8_t *src, uint32_t len, int volume);
 void SDL_LockAudio();
 void SDL_UnlockAudio();
 
+typedef struct {
+  uint8_t   id[4];
+  uint32_t  size;
+  uint8_t   type[4];
+} RIFF_CHUNK;
+
+typedef struct {
+  uint8_t   id[4];
+  uint32_t  size;
+  uint16_t  format;
+  uint16_t  channels;
+  uint32_t  sample_rate;
+  uint32_t  byte_rate;
+  uint16_t  block_align;
+  uint16_t  bits_per_sample;
+} FORMAT_CHUNK;
+
+typedef struct {
+  uint8_t   id[4];
+  uint32_t  size;
+} DATA_CHUNK;
+
 #endif
