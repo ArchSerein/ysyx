@@ -1,6 +1,6 @@
 `include "riscv_param.vh"
 
-module wbu (
+module ysyx_25030067_wbu (
     input                           clock,
     input                           reset,
     input                           lsu_valid_i,

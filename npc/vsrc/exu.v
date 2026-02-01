@@ -1,7 +1,7 @@
 `include "./include/generated/autoconf.vh"
 `include "riscv_param.vh"
 
-module exu (
+module ysyx_25030067_exu (
     input                               clock,
     input                               reset,
 
@@ -93,7 +93,7 @@ module exu (
     } = rfu_exu_bus;
 
     wire [31:0] ex_alu_result;
-    alu alu_module (
+    ysyx_25030067_alu ysyx_25030067_alu_module (
         .alu_op_i       (ex_alu_op),
         .alu_a_i        (ex_alu_src1),
         .alu_b_i        (ex_alu_src2),

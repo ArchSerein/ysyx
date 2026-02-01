@@ -1,6 +1,6 @@
 `include "csr.vh"
 
- module csr (
+ module ysyx_25030067_csr (
     input                           clock,
     input                           reset,
     input                           csr_we_i,

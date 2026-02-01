@@ -1,5 +1,6 @@
 `include "./include/generated/autoconf.vh"
-module icache (
+`include "riscv_param.vh"
+module ysyx_25030067_icache (
   input                           clock,
   input                           reset,
 
@@ -134,12 +135,14 @@ module icache (
     end
   end
 
-  reg [ 1:0]      fill_data_ptr;
+  reg  [ 1:0]      fill_data_ptr;
+  wire [ 1:0]      next_fill_data_ptr;
+  assign next_fill_data_ptr = fill_data_ptr + 2'b01;
   always @ (posedge clock) begin
     if (!hit && valid && mshr == READY) begin
       fill_data_ptr <= offset;
     end else if (fill_data_valid) begin
-      fill_data_ptr <= fill_data_ptr + 1;
+      fill_data_ptr <= next_fill_data_ptr;
     end
   end
   always @ (posedge clock) begin

@@ -1,7 +1,7 @@
 `include "csr.vh"
 `include "riscv_param.vh"
 
-module ysyx_00000000_core (
+module ysyx_25030067_core (
     input                       clock,
     input                       reset,
 
@@ -66,7 +66,7 @@ module ysyx_00000000_core (
     wire [ 6:0]                      exu_excp_bus;
     wire [ 8:0]                      lsu_excp_bus;
 
-    ifu ifu_module (
+    ysyx_25030067_ifu ysyx_25030067_ifu_module (
         .clock          (clock),
         .reset          (reset),
 
@@ -90,7 +90,7 @@ module ysyx_00000000_core (
     wire [`ICU_DEU_BUS_WIDTH-1:0]    icu_deu_bus;
     wire                             icache_valid;
     wire deu_ready;
-    icache icache_module (
+    ysyx_25030067_icache ysyx_25030067_icache_module (
       .clock            (clock),
       .reset            (reset),
 
@@ -128,7 +128,7 @@ module ysyx_00000000_core (
     wire deu_valid;
     wire exu_ready;
 
-    deu deu_module (
+    ysyx_25030067_deu ysyx_25030067_deu_module (
         .clock          (clock),
         .reset          (reset),
 
@@ -164,7 +164,7 @@ module ysyx_00000000_core (
     wire [`FORWARD_BUS_WIDTH-1:0] lsu_forward_bus;
     wire [`FORWARD_BUS_WIDTH-1:0] wbu_forward_bus;
 
-    rfu rfu_module (
+    ysyx_25030067_rfu ysyx_25030067_rfu_module (
         .clock          (clock),
         .reset          (reset),
 
@@ -203,7 +203,7 @@ module ysyx_00000000_core (
     wire exu_valid;
     wire lsu_ready;
 
-    exu exu_module (
+    ysyx_25030067_exu ysyx_25030067_exu_module (
         .clock          (clock),
         .reset          (reset),
 
@@ -243,7 +243,7 @@ module ysyx_00000000_core (
     wire lsu_valid;
     wire wbu_ready;
 
-    lsu lsu_module (
+    ysyx_25030067_lsu ysyx_25030067_lsu_module (
         .clock          (clock),
         .reset          (reset),
 
@@ -279,7 +279,7 @@ module ysyx_00000000_core (
     wire csr_we;
     wire [11:0] csr_waddr;
 
-    wbu wbu_module (
+    ysyx_25030067_wbu ysyx_25030067_wbu_module (
         .clock          (clock),
         .reset          (reset),
         .lsu_valid_i    (lsu_valid),
@@ -305,7 +305,7 @@ module ysyx_00000000_core (
     );
 
     // regfile
-    regfile rf_module (
+    ysyx_25030067_regfile ysyx_25030067_regfile_module (
         .clock          (clock),
         .reset          (reset),
         .reg_src1_i     (rs1),
@@ -318,7 +318,7 @@ module ysyx_00000000_core (
     );
 
     // csr register
-    csr csr_module (
+    ysyx_25030067_csr ysyx_25030067_csr_module (
         .clock          (clock),
         .reset          (reset),
         .csr_we_i       (csr_we),

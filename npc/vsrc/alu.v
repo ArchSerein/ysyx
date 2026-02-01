@@ -1,4 +1,4 @@
-module alu (
+module ysyx_25030067_alu (
   input [2:0] alu_op_i,
   input [31:0] alu_a_i,
   input [31:0] alu_b_i,

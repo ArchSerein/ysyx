@@ -1,4 +1,4 @@
-module compare(
+module ysyx_25030067_compare(
     input [31:0] compare_a_i,
     input [31:0] compare_b_i,
     input [2:0] compare_fn_i,

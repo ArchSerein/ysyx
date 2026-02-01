@@ -1,6 +1,6 @@
 `include "./include/generated/autoconf.vh"
 `include "riscv_param.vh"
-module lsu (
+module ysyx_25030067_lsu (
     input                               clock,
     input                               reset,
 

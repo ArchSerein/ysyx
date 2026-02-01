@@ -1,4 +1,4 @@
-module regfile (
+module ysyx_25030067_regfile (
     input clock,
     input reset,
     input [4:0] reg_src1_i,

@@ -216,7 +216,7 @@ bool is_difftest_cycle() {
 #endif
 
 uint32_t get_pc_reg() {
-    return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ifu_module__DOT__ifu_pc;
+    return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_ifu_module__DOT__ifu_pc;
 }
 
 uint32_t get_inst_reg() {
@@ -224,19 +224,19 @@ uint32_t get_inst_reg() {
 }
 
 uint32_t get_reg_val(int index) {
-    return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__rf_module__DOT__regfile[index];
+    return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_regfile_module__DOT__regfile[index];
 }
 
 uint32_t get_csr_val(int addr) {
     switch (addr) {
         case 0x300:
-            return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__csr_module__DOT__MSTATUS;
+        return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MCAUSE;
         case 0x342:
-            return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__csr_module__DOT__MCAUSE;
+          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MSTATUS;
         case 0x305:
-            return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__csr_module__DOT__MTVEC;
+          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MTVEC;
         case 0x341:
-            return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__csr_module__DOT__MEPC;
+          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MEPC;
         default:
             panic("get_csr_val fault addr: %x", addr);
     }

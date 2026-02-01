@@ -1,5 +1,5 @@
 `include "./include/generated/autoconf.vh"
-module ysyx_00000000_axi (
+module ysyx_25030067_axi (
     input                           clock,
     input                           reset,
     input                           io_interrupt,
@@ -109,7 +109,7 @@ module ysyx_00000000_axi (
     wire      [ 1:0]          lsu_bresp;
     wire                      lsu_bready;
 
-    ysyx_00000000_core core_module (
+    ysyx_25030067_core core_module (
         .clock                      (clock),
         .reset                      (reset),
 
@@ -157,7 +157,7 @@ module ysyx_00000000_axi (
     wire clint_rvalid;
     wire clint_rready;
     wire [31:0] clint_rdata;
-    clint clint_module (
+    ysyx_25030067_clint ysyx_25030067_clint_module (
         .clock            (clock),
         .reset            (reset),
 
@@ -173,9 +173,9 @@ module ysyx_00000000_axi (
     reg   [ 1:0]        grant;
     wire  [ 1:0]        rreq;
     wire  [ 1:0]        grant_q;
-    arbiter #(
+    ysyx_25030067_arbiter #(
       .MASTER(2)
-    ) arbiter_module (
+    ) ysyx_25030067_arbiter_module (
       .clock          (clock),
       .reset          (reset),
       .rreq_i         (rreq),

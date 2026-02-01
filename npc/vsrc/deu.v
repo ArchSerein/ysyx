@@ -1,7 +1,7 @@
 `include "./include/generated/autoconf.vh"
 `include "riscv_param.vh"
 
-module deu (
+module ysyx_25030067_deu (
     input                           clock,
     input                           reset,
 

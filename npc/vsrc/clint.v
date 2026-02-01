@@ -1,4 +1,4 @@
-module clint (
+module ysyx_25030067_clint (
     input                   clock,
     input                   reset,
 

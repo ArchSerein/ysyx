@@ -2,7 +2,7 @@
 `include "riscv_param.vh"
 `include "csr.vh"
 
-module ifu (
+module ysyx_25030067_ifu (
     input                               clock,
     input                               reset,
 

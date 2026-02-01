@@ -1,6 +1,6 @@
 `include "./include/generated/autoconf.vh"
 `include "riscv_param.vh"
-module rfu (
+module ysyx_25030067_rfu (
     input                           clock,
     input                           reset,
 
@@ -166,7 +166,7 @@ module rfu (
     wire        rfu_compare_result;
     wire [31:0] compare_src2;
     assign compare_src2 = rfu_compare_src2_is_imm ? rfu_imm : rfu_rs2_value;
-    compare compare_module (
+    ysyx_25030067_compare ysyx_25030067_compare_module (
         .compare_a_i(rfu_rs1_value),
         .compare_b_i(compare_src2),
         .compare_fn_i(rfu_compare_fn),

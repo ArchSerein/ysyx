@@ -1,4 +1,4 @@
-module arbiter #(
+module ysyx_25030067_arbiter #(
   parameter MASTER = 2 )(
   input                 clock,
   input                 reset,
