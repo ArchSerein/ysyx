@@ -1,4 +1,4 @@
-`include "riscv_param.vh"
+`include "ysyx_25030067_riscv_param.vh"
 
 module ysyx_25030067_wbu (
     input                           clock,
@@ -128,9 +128,11 @@ module ysyx_25030067_wbu (
     import "DPI-C" function void ending(input int num);
     // break signal
     always @(*) begin
-        if (lsu_excp_bus[3] || cnt >= 32'h2000) begin
+        if (lsu_excp_bus[3]) begin
             ending(1);
-        end
+          end else if (cnt >= 32'h20000) begin
+            ending(2);
+          end
     end
 
     `ifdef CONFIG_DIFFTEST
@@ -144,7 +146,7 @@ module ysyx_25030067_wbu (
             end else begin
                 difftest <= 8'b0;
             end
-            is_difftest(difftest, wbu_pc, {7'h0, is_skip_difftest});
+            is_difftest(difftest, wbu_pc, {is_skip_difftest, has_excp, csr_mcause_o[5:0]});
         end
     `endif
     `ifdef CONFIG_TRACE_PERFORMANCE

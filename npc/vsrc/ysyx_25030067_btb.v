@@ -49,11 +49,11 @@ module ysyx_25030067_btb (
     if (reset) begin
       btb_valid <= {BTB_SET{1'b0}};
     end if (update) begin
-      btb_valid[index] <= 1'b1;
+      btb_valid[update_index] <= 1'b1;
     end
   end
 
 
-  assign btb_valid_o  = btb_valid[index] && (|(btb_tag[index] ^ tag));
+  assign btb_valid_o  = btb_valid[index] && (!(|(btb_tag[index] ^ tag)));
   assign predict_pc_o = btb_data[index];
 endmodule

@@ -1,5 +1,5 @@
-`include "./include/generated/autoconf.vh"
-`include "riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 
 module ysyx_25030067_exu (
     input                               clock,
@@ -20,6 +20,7 @@ module ysyx_25030067_exu (
     // axi write addr channel
     input                               awready_i,
     output [31:0]                       awaddr_o,
+    output [ 2:0]                       awsize_o,
     output                              awvalid_o,
     // axi wirte data channel
     input                               wready_i,
@@ -27,6 +28,7 @@ module ysyx_25030067_exu (
     output [ 3:0]                       wstrb_o,
     output                              wvalid_o,
 
+    output                              ex_br_taken_o,
     output                              branch_flush,
     output [31:0]                       branch_target,
 
@@ -139,6 +141,7 @@ module ysyx_25030067_exu (
 
     assign branch_target = ex_alu_result;
     assign branch_flush = ex_branch && (|(ex_alu_result ^ ex_snpc)) && valid;
+    assign ex_br_taken_o  = ex_branch;
 
     wire [31:0] final_result;
     assign final_result = ex_res_from_pre ? ex_final_result : ex_alu_result;
@@ -147,16 +150,16 @@ module ysyx_25030067_exu (
     assign exu_lsu_bus_o = {
         is_skip_difftest,
         ex_pc,
-        ex_csr_wdata,           
-        ex_csr_we,              
-        mem_addr_mask,          
-        ex_mem_re,              
+        ex_csr_wdata,
+        ex_csr_we,
+        mem_addr_mask,
+        ex_mem_re,
         |ex_mem_we,
         ex_csr_addr,
-        ex_res_from_mem,        
-        ex_gr_we,               
-        ex_rd,                  
-        ex_xret_flush,          
+        ex_res_from_mem,
+        ex_gr_we,
+        ex_rd,
+        ex_xret_flush,
         final_result
     };
     /* 32 + 1 + 2 + 4 + 1 + 12 + 1 + 1 + 5 + 1 + 1 + 1 + 32 = 94*/
@@ -190,7 +193,9 @@ module ysyx_25030067_exu (
                               {{3{ex_mem_re == 4'b0001 || ex_mem_re == 4'b0101}} & 3'b000};
     assign araddr_o         = ex_alu_result;
     assign awaddr_o         = ex_alu_result;
-
+    assign awsize_o         = {{3{ex_mem_we == 4'b1111}} & 3'b010} |
+                              {{3{ex_mem_re == 4'b0011}} & 3'b001} |
+                              {{3{ex_mem_re == 4'b0001}} & 3'b000};
     wire   request_valid    = valid && !handshake_state;
     assign arvalid_o        = (|ex_mem_re) && request_valid;
     assign awvalid_o        = (|ex_mem_we) && request_valid;
@@ -198,34 +203,35 @@ module ysyx_25030067_exu (
     // assign wdata_o          =   ex_rs2_value;
     assign wdata_o          =   ({32{ex_mem_we == 4'b1111}} & ex_rs2_value) |
                                 ({32{ex_mem_we == 4'b0011}} & mem_half_wdata) |
-                                ({32{ex_mem_we == 4'b0001}} & mem_byte_wdata); 
+                                ({32{ex_mem_we == 4'b0001}} & mem_byte_wdata);
     assign wstrb_o          = mem_we_mask;
     assign wvalid_o         = (|ex_mem_we) && request_valid;
 
     wire   load_addr_misalign;
     wire   store_amo_addr_misalign;
 
-    assign load_addr_misalign = ex_mem_re[3] ? (ex_alu_result[1] | ex_alu_result[0]) :
-                                ex_mem_re[1] ? ex_alu_result[0] :
-                                1'b0;
+    assign load_addr_misalign      = ex_mem_re[3] ? (ex_alu_result[1] | ex_alu_result[0]) :
+                                     ex_mem_re[1] ? ex_alu_result[0] :
+                                     1'b0;
     assign store_amo_addr_misalign = ex_mem_we[3] ? (ex_alu_result[1] | ex_alu_result[0]) :
                                      ex_mem_we[1] ? ex_alu_result[0] :
                                      1'b0;
 
-    assign no_mem_req = !(arvalid_o || awvalid_o || wvalid_o);
+    assign no_mem_req        = !(arvalid_o || awvalid_o || wvalid_o);
     assign handshake_success = (arvalid_o && arready_i) || (awvalid_o && awready_i && wvalid_o && wready_i);
-    assign idle = no_mem_req || handshake_success || handshake_state;
-    assign valid_o = valid && idle;
-    assign exu_ready_o = !valid || (valid_o && lsu_ready_i);
-    assign exu_excp_bus_o = {rfu_excp_bus[4], store_amo_addr_misalign,
-                              load_addr_misalign, rfu_excp_bus[3:0]};
-    wire stall;
-    assign stall = ex_res_from_mem && valid;
-    wire exu_gpr_forward_valid;
-    wire exu_valid;
+    assign idle              = no_mem_req || handshake_success || handshake_state;
+    assign valid_o           = valid && idle;
+    assign exu_ready_o       = !valid || (valid_o && lsu_ready_i);
+    assign exu_excp_bus_o    = { rfu_excp_bus[4], store_amo_addr_misalign,
+                                 load_addr_misalign, rfu_excp_bus[3:0]};
+    wire      stall;
+    wire      exu_gpr_forward_valid;
+    wire      exu_valid;
+    assign stall                 = ex_res_from_mem && valid;
     assign exu_gpr_forward_valid = valid_o && (ex_rd != 5'b0) && ex_gr_we && !ex_res_from_mem;
-    assign exu_valid = valid && ex_csr_we;
-    assign exu_forward_bus = { exu_gpr_forward_valid, exu_valid, stall, ex_rd, ex_csr_addr, final_result };
+    assign exu_valid             = valid && ex_csr_we;
+    assign exu_forward_bus       = { exu_gpr_forward_valid, exu_valid, stall,
+                                     ex_rd, ex_csr_addr, final_result };
 
     assign is_skip_difftest = (awvalid_o || arvalid_o) && (ex_alu_result[31:16] == 16'h1000 || ex_alu_result[31:16] == 16'h0200);
     `ifdef CONFIG_TRACE_PERFORMANCE

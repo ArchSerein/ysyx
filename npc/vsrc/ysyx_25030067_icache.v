@@ -1,11 +1,12 @@
-`include "./include/generated/autoconf.vh"
-`include "riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_icache (
   input                           clock,
   input                           reset,
 
   input                           excp_flush,
   input                           mret_flush,
+  input                           wait_cache_flush,
 
   output                          ready_o,
   input                           ifu_valid_i,
@@ -70,7 +71,7 @@ module ysyx_25030067_icache (
       valid <= 1'b0;
     end
   end
-  assign has_flush_sign = branch_flush || excp_flush || mret_flush || reset;
+  assign has_flush_sign = branch_flush || excp_flush || mret_flush || reset || wait_cache_flush;
 
   reg [WIDTH-1:0]          dataArray[BLOCK-1:0][OFFSET-1:0];
   reg [TAG-1:0]            tagArray[BLOCK-1:0];
@@ -156,7 +157,7 @@ module ysyx_25030067_icache (
     end
   end
   always @ (posedge clock) begin
-    if (icache_flush) begin
+    if (icache_flush || reset) begin
       validArray                 <= {BLOCK{1'b0}};
     end else if (icache_rlast_i && fill_data_valid && !uncache_addr) begin
       validArray[miss_req_index] <= 1'b1;
@@ -166,7 +167,7 @@ module ysyx_25030067_icache (
   assign icu_excp_bus_o = {access_data_fault, ifu_excp_bus};
 
   assign miss_req_tag             = miss_req_addr[WIDTH-1: OFFSET+INDEX];
-  assign miss_req_index           = miss_req_addr[OFFSET+INDEX-1: OFFSET]; 
+  assign miss_req_index           = miss_req_addr[OFFSET+INDEX-1: OFFSET];
   assign miss_req_offset          = miss_req_addr[OFFSET-1: 2];
   assign fill_data_valid          = mshr == WAITFILLRESP && icache_rvalid_i && (icache_rresp_i == INST_OK || icache_rresp_i == INST_EXOKAY);
   assign uncache_addr             = miss_req_addr[31:16] == 16'h0f00;

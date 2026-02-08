@@ -1,5 +1,5 @@
-`include "./include/generated/autoconf.vh"
-`include "riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_rfu (
     input                           clock,
     input                           reset,
@@ -21,6 +21,7 @@ module ysyx_25030067_rfu (
     input  [31:0]                   rfu_csr_value_i,
 
     input                           branch_flush,
+    input                           wait_cache_flush,
 
     // data harzard (bypass)
     input  [`FORWARD_BUS_WIDTH-1:0] exu_forward_bus,
@@ -141,9 +142,12 @@ module ysyx_25030067_rfu (
     wire [31:0] exu_forward_data;
     wire [31:0] lsu_forward_data;
     wire [31:0] wbu_forward_data;
-    assign {exu_gpr_forword_valid, exu_valid, exu_stall, exu_rd, exu_csr_addr, exu_forward_data} = exu_forward_bus;
-    assign {lsu_gpr_forward_valid, lsu_valid, lsu_stall, lsu_rd, lsu_csr_addr, lsu_forward_data} = lsu_forward_bus;
-    assign {wbu_gpr_forward_valid, wbu_valid, wbu_stall, wbu_rd, wbu_csr_addr, wbu_forward_data} = wbu_forward_bus;
+    assign {exu_gpr_forword_valid, exu_valid, exu_stall, exu_rd, exu_csr_addr, exu_forward_data} =
+                exu_forward_bus;
+    assign {lsu_gpr_forward_valid, lsu_valid, lsu_stall, lsu_rd, lsu_csr_addr, lsu_forward_data} =
+                lsu_forward_bus;
+    assign {wbu_gpr_forward_valid, wbu_valid, wbu_stall, wbu_rd, wbu_csr_addr, wbu_forward_data} =
+                wbu_forward_bus;
     assign rfu_rs1_value  = (exu_gpr_forword_valid && !exu_stall && exu_rd ==
                               rfu_rs1_o) ?  exu_forward_data :
                             (lsu_gpr_forward_valid && !lsu_stall && lsu_rd ==
@@ -158,7 +162,7 @@ module ysyx_25030067_rfu (
                             (wbu_gpr_forward_valid && !wbu_stall && wbu_rd ==
                               rfu_rs2_o) ?  wbu_forward_data :
                             rfu_rs2_value_i;
-    assign stall =  (exu_stall | lsu_stall | wbu_stall) ||
+    assign stall =  (exu_stall | lsu_stall | wbu_stall) || wait_cache_flush  ||
                     (exu_valid && (exu_csr_addr == rfu_csr_addr)) ||
                     (lsu_valid && (lsu_csr_addr == rfu_csr_addr)) ||
                     (wbu_valid && (wbu_csr_addr == rfu_csr_addr));

@@ -20,7 +20,7 @@ module ysyx_25030067_bpu (
 
   always @ (posedge clock) begin
     if (reset) begin
-      saturat_counter <= STRONGLY_NOT_TAKEN;
+      saturat_counter <= WEAKLY_NOT_TAKEN;
     end else if (exu_valid_i) begin
       saturat_counter <= next_saturat_counter;
     end

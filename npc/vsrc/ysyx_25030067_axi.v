@@ -86,28 +86,35 @@ module ysyx_25030067_axi (
     wire      [31:0]          icache_rdata;
     wire      [ 1:0]          icache_rresp;
 
-    wire                      exu_arvalid;
-    wire      [ 2:0]          exu_arsize;
-    wire      [31:0]          exu_araddr;
-    wire                      exu_arready;
+    wire                      dcache_arready;
+    wire      [ 7:0]          dcache_arlen;
+    wire      [ 2:0]          dcache_arsize;
+    wire      [ 1:0]          dcache_arburst;
+    wire                      dcache_arvalid;
+    wire      [31:0]          dcache_araddr;
 
-    wire                      lsu_rready;
-    wire                      lsu_rvalid;
-    wire      [31:0]          lsu_rdata;
-    wire      [ 1:0]          lsu_rresp;
+    wire                      dcache_rvalid;
+    wire      [31:0]          dcache_rdata;
+    wire      [ 1:0]          dcache_rresp;
+    wire                      dcache_rlast;
+    wire                      dcache_rready;
 
-    wire                      exu_awvalid;
-    wire      [31:0]          exu_awaddr;
-    wire                      exu_awready;
+    wire                      dcache_awready;
+    wire                      dcache_awvalid;
+    wire      [31:0]          dcache_awaddr;
+    wire      [ 1:0]          dcache_awburst;
+    wire      [ 7:0]          dcache_awlen;
+    wire      [ 2:0]          dcache_awsize;
 
-    wire                      exu_wvalid;
-    wire      [31:0]          exu_wdata;
-    wire      [ 3:0]          exu_wstrb;
-    wire                      exu_wready;
+    wire                      dcache_wready;
+    wire                      dcache_wvalid;
+    wire      [31:0]          dcache_wdata;
+    wire      [ 3:0]          dcache_wstrb;
+    wire                      dcache_wlast;
 
-    wire                      lsu_bvalid;
-    wire      [ 1:0]          lsu_bresp;
-    wire                      lsu_bready;
+    wire                      dcache_bvalid;
+    wire                      dcache_bready;
+    wire      [ 1: 0]         dcache_bresp;
 
     ysyx_25030067_core core_module (
         .clock                      (clock),
@@ -126,28 +133,35 @@ module ysyx_25030067_axi (
         .icache_rdata               (icache_rdata),
         .icache_rresp               (icache_rresp),
 
-        .exu_arvalid                (exu_arvalid),
-        .exu_araddr                 (exu_araddr),
-        .exu_arready                (exu_arready),
-        .exu_arsize                 (exu_arsize),
+        .dcache_arready             (dcache_arready),
+        .dcache_arlen               (dcache_arlen),
+        .dcache_arsize              (dcache_arsize),
+        .dcache_arburst             (dcache_arburst),
+        .dcache_arvalid             (dcache_arvalid),
+        .dcache_araddr              (dcache_araddr),
 
-        .lsu_rready                 (lsu_rready),
-        .lsu_rvalid                 (lsu_rvalid),
-        .lsu_rdata                  (lsu_rdata),
-        .lsu_rresp                  (lsu_rresp),
+        .dcache_rvalid              (dcache_rvalid),
+        .dcache_rdata               (dcache_rdata),
+        .dcache_rresp               (dcache_rresp),
+        .dcache_rlast               (dcache_rlast),
+        .dcache_rready              (dcache_rready),
 
-        .exu_awvalid                (exu_awvalid),
-        .exu_awaddr                 (exu_awaddr),
-        .exu_awready                (exu_awready),
+        .dcache_awready             (dcache_awready),
+        .dcache_awvalid             (dcache_awvalid),
+        .dcache_awaddr              (dcache_awaddr),
+        .dcache_awburst             (dcache_awburst),
+        .dcache_awlen               (dcache_awlen),
+        .dcache_awsize              (dcache_awsize),
 
-        .exu_wvalid                 (exu_wvalid),
-        .exu_wdata                  (exu_wdata),
-        .exu_wstrb                  (exu_wstrb),
-        .exu_wready                 (exu_wready),
+        .dcache_wready              (dcache_wready),
+        .dcache_wvalid              (dcache_wvalid),
+        .dcache_wdata               (dcache_wdata),
+        .dcache_wstrb               (dcache_wstrb),
+        .dcache_wlast               (dcache_wlast),
 
-        .lsu_bvalid                 (lsu_bvalid),
-        .lsu_bresp                  (lsu_bresp),
-        .lsu_bready                 (lsu_bready)
+        .dcache_bvalid              (dcache_bvalid),
+        .dcache_bready              (dcache_bready),
+        .dcache_bresp               (dcache_bresp)
     );
 
     reg  clint_select;
@@ -163,7 +177,7 @@ module ysyx_25030067_axi (
 
         .arvalid_i        (clint_arvalid),
         .arready_o        (clint_arready),
-        .araddr_i         (exu_araddr),
+        .araddr_i         (dcache_araddr),
 
         .rvalid_o         (clint_rvalid),
         .rready_i         (clint_rready),
@@ -181,7 +195,7 @@ module ysyx_25030067_axi (
       .rreq_i         (rreq),
       .grant_o        (grant_q)
     );
-    assign rreq = {icache_arvalid, exu_arvalid};
+    assign rreq = {icache_arvalid, dcache_arvalid};
     reg   idle;
     reg   read_busy;
     reg   write_busy;
@@ -206,66 +220,68 @@ module ysyx_25030067_axi (
         grant <= grant_q;
       end
     end
-    assign release_arbiter = reset || (io_master_rvalid && io_master_rready && io_master_rlast) || (clint_select && clint_rvalid && lsu_rready);
+    assign release_arbiter = reset || (io_master_rvalid && io_master_rready && io_master_rlast) || (clint_select && clint_rvalid && dcache_rready);
     assign acquire_arbiter =  grant[1] && icache_arvalid && icache_arready ||
-                              (grant[0] || is_clint) && exu_arvalid && exu_arready;
+                              (grant[0] || is_clint) && dcache_arvalid && dcache_arready;
 
     always @(posedge clock) begin
       if (is_clint) begin
         clint_select <= 1'b1;
-      end else if (clint_rvalid && lsu_rready) begin
+      end else if (clint_rvalid && dcache_rready) begin
         clint_select <= 1'b0;
       end
     end
-    assign is_clint = exu_araddr[31:16] == 16'h0200 && exu_arvalid;
-    assign clint_arvalid = exu_arvalid && is_clint && !read_busy;
-    assign clint_rready = lsu_rready;
+    assign is_clint = dcache_araddr[31:16] == 16'h0200 && dcache_arvalid;
+    assign clint_arvalid = dcache_arvalid && is_clint && !read_busy;
+    assign clint_rready = dcache_rready;
 
     always @(posedge clock) begin
       if (reset || (io_master_bvalid && io_master_bready)) begin
         write_busy <= 1'b0;
-      end else if (exu_awvalid && exu_awready) begin
+      end else if (dcache_wvalid && dcache_wready && dcache_wlast) begin
         write_busy <= 1'b1;
       end
     end
 
-    assign io_master_awvalid = exu_awvalid && !write_busy;
-    assign io_master_awaddr = exu_awaddr;
+    assign io_master_awvalid = dcache_awvalid && !write_busy;
+    assign io_master_awaddr = dcache_awaddr;
     assign io_master_awid = 4'b0000;
-    assign io_master_awlen = 8'b00000000;
-    assign io_master_awsize = 3'b000;
-    assign io_master_awburst = 2'b00;
-    assign exu_awready = io_master_awready && !write_busy;
+    assign io_master_awlen = dcache_awlen;
+    assign io_master_awsize = dcache_awsize;
+    assign io_master_awburst = dcache_awburst;
+    assign dcache_awready = io_master_awready && !write_busy;
 
-    assign io_master_wvalid = exu_wvalid && !write_busy;
-    assign exu_wready = io_master_wready && !write_busy;
-    assign io_master_wdata = exu_wdata;
-    assign io_master_wstrb = exu_wstrb;
-    assign io_master_wlast = 1'b1;
+    assign io_master_wvalid = dcache_wvalid && !write_busy;
+    assign dcache_wready = io_master_wready && !write_busy;
+    assign io_master_wdata = dcache_wdata;
+    assign io_master_wstrb = dcache_wstrb;
+    assign io_master_wlast = dcache_wlast;
 
-    assign io_master_bready = lsu_bready;
-    assign lsu_bvalid = io_master_bvalid;
-    assign lsu_bresp = io_master_bresp;
+    assign io_master_bready = dcache_bready;
+    assign dcache_bvalid = io_master_bvalid;
+    assign dcache_bresp = io_master_bresp;
 
-    assign io_master_arvalid = (grant[1] && icache_arvalid && !read_busy) || (exu_arvalid && !is_clint && grant[0] && !read_busy);
-    assign io_master_araddr = ({32{grant[1]}} & icache_araddr) | ({32{grant[0]}} & exu_araddr);
+    assign io_master_arvalid = (grant[1] && icache_arvalid && !read_busy) ||
+                               (dcache_arvalid && !is_clint && grant[0] && !read_busy);
+    assign io_master_araddr = ({32{grant[1]}} & icache_araddr) | ({32{grant[0]}} & dcache_araddr);
     assign io_master_arid = 4'b0000;
-    assign io_master_arlen = grant[1] ? icache_arlen : 8'h0;
-    assign io_master_arsize = ({3{grant[1]}} & icache_arsize) | ({3{grant[0]}} & exu_arsize);
-    assign io_master_arburst = grant[1] ? icache_arburst : 2'b00;
-    assign exu_arready = grant[0] && !read_busy && io_master_arready;
+    assign io_master_arlen = grant[1] ? icache_arlen : dcache_arlen;
+    assign io_master_arsize = ({3{grant[1]}} & icache_arsize) | ({3{grant[0]}} & dcache_arsize);
+    assign io_master_arburst = grant[1] ? icache_arburst : dcache_arburst;
 
-    assign io_master_rready = (grant[1] && icache_rready) | (grant[0] && lsu_rready);
+    assign io_master_rready = (grant[1] && icache_rready) | (grant[0] && dcache_rready);
 
     assign icache_arready = io_master_arready && grant[1] && !read_busy;
     assign icache_rvalid = io_master_rvalid & grant[1];
     assign icache_rdata = io_master_rdata;
     assign icache_rresp = io_master_rresp;
-    assign icache_rlast = io_master_rlast;
+    assign icache_rlast = io_master_rlast & grant[1];
 
-    assign lsu_rvalid = clint_select ? clint_rvalid : io_master_rvalid & grant[0];
-    assign lsu_rdata = clint_select ? clint_rdata : io_master_rdata;
-    assign lsu_rresp = clint_select ? 2'b00 : io_master_rresp;
+    assign dcache_arready = grant[0] && !read_busy && io_master_arready;
+    assign dcache_rvalid = clint_select ? clint_rvalid : io_master_rvalid & grant[0];
+    assign dcache_rlast  = clint_select ? 1'b1  : io_master_rlast & grant[0];
+    assign dcache_rdata = clint_select ? clint_rdata : io_master_rdata;
+    assign dcache_rresp = clint_select ? 2'b00 : io_master_rresp;
 
     // unused signals
     assign io_slave_awready = 1'b0;

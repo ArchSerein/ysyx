@@ -1,4 +1,4 @@
-`include "csr.vh"
+`include "ysyx_25030067_csr.vh"
 
  module ysyx_25030067_csr (
     input                           clock,

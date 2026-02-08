@@ -108,8 +108,10 @@ for (int i = 0; i < n; i++) {
 
     #ifdef CONFIG_DIFFTEST
       extern uint32_t difftest_pc;
-      if (is_difftest_cycle())
+      if (is_difftest_cycle()) {
         difftest_step(difftest_pc);
+        set_difftest_time();
+      }
     #endif // CONFIG_DIFFTEST
 
     if (g_print_step) {

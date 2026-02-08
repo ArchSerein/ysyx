@@ -138,6 +138,7 @@ __attribute__((section("ssbl"))) __attribute__((used)) void _ssbl() {
   for (size_t i = 0; i < _load_data_extra_size; i++) {
     *(_data_extra_start + i) = *(_load_data_extra_start + i);
   }
+  asm volatile("fence.i" ::: "memory");
   _trm_init();
 }
 

@@ -1,5 +1,5 @@
-`include "./include/generated/autoconf.vh"
-`include "riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_lsu (
     input                               clock,
     input                               reset,
@@ -53,7 +53,7 @@ module ysyx_25030067_lsu (
     wire [31:0] ms_final_result;
     wire [31:0] ms_pc;
     wire        is_skip_difftest;
-    
+
     assign {
         is_skip_difftest,
         ms_pc,

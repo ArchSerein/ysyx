@@ -48,6 +48,7 @@ void    difftest_step(vaddr_t pc);
 // npc.cpp
 extern "C" void is_difftest(char, int, char);
 bool            is_difftest_cycle();
+void            set_difftest_time();
 extern "C" void inst_count(void);
 void            cycle_count(void);
 

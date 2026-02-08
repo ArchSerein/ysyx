@@ -1,5 +1,5 @@
-`include "./include/generated/autoconf.vh"
-`include "riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 
 module ysyx_25030067_deu (
     input                           clock,
@@ -16,8 +16,10 @@ module ysyx_25030067_deu (
     output [`DEU_RFU_BUS_WIDTH-1:0] deu_rfu_bus_o,
     output [ 4:0]                   deu_excp_bus_o,
 
-    output                          icache_flush,
+    output [`ADDR_WIDTH-1:0]        cache_flush_target,
+    output                          cache_flush,
     input                           branch_flush,
+    input                           wait_cache_flush,
 
     input                           rfu_ready_i,
     output                          valid_o
@@ -71,7 +73,7 @@ module ysyx_25030067_deu (
         valid <= 1'b0;
       end
     end
-    assign has_flush_sign = reset || branch_flush || excp_flush || mret_flush;
+    assign has_flush_sign = reset || branch_flush || excp_flush || mret_flush || wait_cache_flush;
 
     // instruction
     wire            inst_lui;
@@ -135,9 +137,11 @@ module ysyx_25030067_deu (
 
     assign deu_imm_i      = { {20{deu_inst[31]}}, deu_inst[31:20] };
     assign deu_imm_s      = { {20{deu_inst[31]}}, deu_inst[31:25], deu_inst[11:7] };
-    assign deu_imm_b      = { {19{deu_inst[31]}}, deu_inst[31], deu_inst[7], deu_inst[30:25], deu_inst[11:8], 1'b0 };
+    assign deu_imm_b      = { {19{deu_inst[31]}}, deu_inst[31], deu_inst[7], deu_inst[30:25],
+                                deu_inst[11:8], 1'b0 };
     assign deu_imm_u      = { deu_inst[31:12], 12'b0 };
-    assign deu_imm_j      = { {12{deu_inst[31]}}, deu_inst[19:12], deu_inst[20], deu_inst[30:21], 1'b0 };
+    assign deu_imm_j      = { {12{deu_inst[31]}}, deu_inst[19:12], deu_inst[20],
+                                deu_inst[30:21], 1'b0 };
 
     assign deu_optype     = {3{deu_opcode == 7'b0110011}} & `INST_R |
                             {3{deu_opcode == 7'b0100011}} & `INST_S |
@@ -173,7 +177,7 @@ module ysyx_25030067_deu (
     assign inst_xori      = deu_opcode == 7'b0010011 && deu_funct3 == 3'b100;
     assign inst_ori       = deu_opcode == 7'b0010011 && deu_funct3 == 3'b110;
     assign inst_andi      = deu_opcode == 7'b0010011 && deu_funct3 == 3'b111;
-    assign inst_slli      = deu_opcode == 7'b0010011 && deu_funct3 == 3'b001 && 
+    assign inst_slli      = deu_opcode == 7'b0010011 && deu_funct3 == 3'b001 &&
                                deu_funct7 == 7'b0000000;
     assign inst_srli      = deu_opcode == 7'b0010011 && deu_funct3 == 3'b101 &&
                                deu_funct7 == 7'b0000000;
@@ -300,7 +304,7 @@ module ysyx_25030067_deu (
     wire csr_we;
     assign csr_we = inst_csrrw || inst_csrrs;
 
-    wire [3:0] deu_mem_re;  
+    wire [3:0] deu_mem_re;
     assign deu_mem_re = {4{inst_lb}} & 4'b0101 |
                         {4{inst_lh}} & 4'b0111 |
                         {4{inst_lw}} & 4'b1111 |
@@ -320,11 +324,12 @@ module ysyx_25030067_deu (
 
     wire deu_br_taken;
     assign deu_br_taken = inst_beq || inst_bne || inst_blt || inst_bge || inst_bltu || inst_bgeu;
-    
+
     wire jmp_flag;
     assign jmp_flag = inst_jal || inst_jalr;
 
-    assign icache_flush = inst_fence_i;
+    assign cache_flush        = inst_fence_i && valid;
+    assign cache_flush_target = deu_snpc;
 
     assign deu_rfu_bus_o = {
       deu_pc,

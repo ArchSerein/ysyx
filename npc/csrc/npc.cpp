@@ -60,17 +60,24 @@ void
 single_cycle(inst_i *cur_inst) {
     if (e)
     {
+      if (e == 2) {
+        Log("The NPC's status does not advance forward.");
+        isa_reg_display();
+        npc_state.halt_ret = 1;
+        npc_state.state = ABORT;
+      } else {
         if (get_reg_val(10) == 0)
         {
             npc_state.halt_ret = 0;
             npc_state.state = END;
         }
-            
+
         else
         {
             npc_state.halt_ret = 1;
             npc_state.state = ABORT;
         }
+      }
     }
 
     if (cur_inst != NULL)
@@ -205,13 +212,21 @@ isa_reg_str2val(const char *s) {
 bool    is_difftest_time = false;
 uint32_t difftest_pc = 0;
 extern  bool is_skip_ref;
+extern  bool is_raise_intr;
+extern  uint32_t  no;
 extern "C" void is_difftest(char difftest, int pc, char skip){
     is_difftest_time = difftest == 1;
-    is_skip_ref = skip == 1;
+    is_skip_ref = skip & 0x80;
+    is_raise_intr = skip & 0x40;
+    no = skip & 0x3f;
     difftest_pc = (uint32_t)pc;
 }
 bool is_difftest_cycle() {
     return is_difftest_time;
+}
+
+void set_difftest_time() {
+  is_difftest_time = false;
 }
 #endif
 
@@ -230,9 +245,9 @@ uint32_t get_reg_val(int index) {
 uint32_t get_csr_val(int addr) {
     switch (addr) {
         case 0x300:
-        return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MCAUSE;
+        return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MSTATUS;
         case 0x342:
-          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MSTATUS;
+          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MCAUSE;
         case 0x305:
           return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MTVEC;
         case 0x341:

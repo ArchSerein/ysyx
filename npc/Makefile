@@ -40,6 +40,7 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 VSRCS = $(shell find $(abspath ../ysyxSoC/perip) -name "*.v")
 VSRCS += $(shell find $(abspath ../ysyxSoC/build) -name "*.v")
 VSRCS += $(shell find $(abspath ./vsrc) -name "*.v")
+VSRCS += $(shell find $(abspath ./vsrc) -name "*.vh")
 CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 
@@ -59,9 +60,10 @@ endif
 
 INCDIR = +incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/uart16550/rtl	+incdir+/home/serein/ysyx/ysyx-workbench/ysyxSoC/perip/spi/rtl
 INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/vsrc
+INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/include/generated
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
-		@python3 $(NPC_HOME)/trans.py
+		@python3 $(NPC_HOME)/python_scripts/trans.py
 		@rm -rf $(OBJ_DIR)
 		$(VERILATOR) $(VERILATOR_CFLAGS) \
 		$(INCDIR)	\
