@@ -113,9 +113,6 @@ module ysyx_25030067_dcache (
   wire  [TAG_WIDTH-1                  :0]         tag;
   wire  [`CONFIG_DCACHE_ASSOCIATIVITYS_WIDTH-1:0] way;
 
-  wire  [`CONFIG_DCACHE_SETS_WIDTH-1  :0]         miss_req_index;
-  wire  [`CONFIG_DCACHE_BLOCKS_WIDTH-1:0]         miss_req_offset;
-  wire  [TAG_WIDTH-1                  :0]         miss_req_tag;
   wire  [`CONFIG_DCACHE_ASSOCIATIVITYS_WIDTH-1:0] miss_req_way;
 
   reg   [2                            :0]         mshr;
@@ -182,7 +179,7 @@ module ysyx_25030067_dcache (
   assign write_hanshake   = exu_wvalid_i  && dcache_wready_o ;
   assign valid_next_state =
                           reset ? 1'b0 :
-                          (read_handshake || awrite_hanshake ||
+                          (read_handshake | awrite_hanshake &
                             write_hanshake) ? 1'b1 :
                           ((lsu_rready_i && dcache_rvalid_o) ||
                            (lsu_bready_i && dcache_bvalid_o)) ? 1'b0 :
@@ -216,30 +213,30 @@ module ysyx_25030067_dcache (
   assign hit        = (|tag_cmp_res) && valid && mshr == READY;
 
   always @(posedge clock) begin
-    if (!valid && valid_next_state)
+    if (~valid & valid_next_state)
       dcache_req_data <= exu_wdata_i;
   end
 
   always @(posedge clock) begin
-    if (!valid && valid_next_state)
+    if (~valid & valid_next_state)
       dcache_req_addr <= req_addr;
   end
 
   assign  asize = exu_awvalid_i ? exu_awsize_i : exu_arsize_i;
   always @(posedge clock) begin
-    if (!valid && valid_next_state)
+    if (~valid & valid_next_state)
       dcache_asize <= asize;
   end
 
   always @(posedge clock) begin
-    if (!valid && valid_next_state)
+    if (~valid & valid_next_state)
       dcache_wstrb <= exu_wstrb_i;
   end
 
   always @(posedge clock) begin
-    if (valid_next_state && !valid)
+    if (~valid & valid_next_state)
       is_write_req_reg <= exu_awvalid_i;
-    else if (mshr == RESPONSE)
+    else if (mshr == RESPONSE || hit)
       is_write_req_reg <= 1'b0;
   end
 
@@ -307,7 +304,7 @@ module ysyx_25030067_dcache (
   end
 
   assign need_write_back          = validArray[index][fifo_ptr[index]] &&
-                                    dirtyArray[index][fifo_ptr[index]];
+                                    dirtyArray[index][fifo_ptr[index]] && ~uncache_addr;
 
   assign handshake_succ           = dcache_arvalid_o && dcache_arready_i;
 
@@ -380,21 +377,19 @@ module ysyx_25030067_dcache (
                                     ({3{flush_state == F_FINISH}})   &  f_finish_next_state;
   // exu <----> dcache
   // read
-  assign  dcache_arready_o        = mshr == READY && ~valid;
+  assign  dcache_arready_o        = (mshr == READY) && ~valid;
 
   assign  dcache_rvalid_o         = valid && (hit || mshr == RESPONSE || (resp_succ && uncache_addr));
 
   assign  dcache_rdata_o          = (resp_succ && uncache_addr) ? dcache_rdata_i :
-                                    mshr == RESPONSE ?
-                                      dataArray[miss_req_index][miss_req_way][miss_req_offset] :
                                     dataArray[index][way][offset];
 
   assign  dcache_rresp_o          = hit ? DATA_OK : dcache_rresp_i;
 
   // write
-  assign  dcache_wready_o         = mshr == READY && ~valid;
+  assign  dcache_wready_o         = (mshr == READY) && ~valid;
 
-  assign  dcache_awready_o        = mshr == READY && ~valid;
+  assign  dcache_awready_o        = (mshr == READY) && ~valid;
 
   assign  dcache_bvalid_o         = valid && (hit || mshr == RESPONSE || (uncache_addr && dcache_bvalid_i));
 
@@ -404,11 +399,12 @@ module ysyx_25030067_dcache (
   assign  dcache_arvalid_o        = mshr == SENDFILLREQ;
 
   assign  dcache_araddr_o         = uncache_addr ? dcache_req_addr :
-                                    {dcache_req_addr[31:2], {2{1'b0}}};
+                                    {dcache_req_addr[31:`CONFIG_DCACHE_BLOCKS_WIDTH+2],
+                                      {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}};
 
   assign  dcache_arlen_o          = uncache_addr ? 8'b0 : 8'(`CONFIG_DCACHE_BLOCKS-1);
 
-  assign  dcache_arburst_o        = uncache_addr ? `INCR : `WINDING;
+  assign  dcache_arburst_o        = `INCR;
 
   assign  dcache_arsize_o         = uncache_addr ? dcache_asize : 3'b010;
 
@@ -419,8 +415,7 @@ module ysyx_25030067_dcache (
                                     (flush_state == F_SENDREQ) ||
                                     (flush_state == F_WAITREQCOMPLETE && ~awaddr_handshake_done);
 
-  assign  dcache_awburst_o        = (uncache_addr || mshr == WAITFLUSH) ? `INCR :
-                                    `WINDING;
+  assign  dcache_awburst_o        = `INCR;
 
   assign  dcache_awsize_o         = uncache_addr ? dcache_asize : 3'b010;
 
@@ -429,13 +424,13 @@ module ysyx_25030067_dcache (
   assign  dcache_awaddr_o         = uncache_addr ? dcache_req_addr :
                                     mshr == WAITFLUSH ? {tagArray[flush_index][flush_way],
                                             flush_index, {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}}  :
-                                    {tagArray[miss_req_index][miss_req_way], miss_req_index,
-                                      miss_req_offset, 2'b0};
+                                    {tagArray[index][miss_req_way], index,
+                                      {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}};
 
   assign  dcache_wdata_o          = uncache_addr ?  dcache_req_data :
                                     mshr == WAITFLUSH ? dataArray[flush_index][flush_way]
                                                                  [refill_ptr] :
-                                    dataArray[miss_req_index][miss_req_way][refill_ptr];
+                                    dataArray[index][miss_req_way][refill_ptr];
 
   assign  dcache_wvalid_o         = (mshr == WRITEBACK) ||
                                     (mshr == WAITWREQCOMPLETE && ~wdata_handshake_done) ||
@@ -447,26 +442,17 @@ module ysyx_25030067_dcache (
   assign  dcache_wlast_o          = uncache_addr ?  1'b1  :
                                     mshr == WAITFLUSH ? next_refill_ptr ==
                                                         {`CONFIG_DCACHE_BLOCKS_WIDTH{1'b0}}  :
-                                    miss_req_offset == next_refill_ptr;
+                                    {`CONFIG_DCACHE_BLOCKS_WIDTH{1'b0}} == next_refill_ptr;
 
   assign  dcache_bready_o         = mshr == WAITWRITERESP || flush_state == F_WAITRESP;
 
-  assign  miss_req_way            = fifo_ptr[miss_req_index];
+  assign  miss_req_way            = fifo_ptr[index];
 
   assign  fill_data_valid         = dcache_rvalid_i && mshr == WAITFILLRESP && (~dcache_rresp_i[1]);
 
   assign  uncache_addr            = (!(dcache_req_addr[31:28] == 4'h3 ||
                                        dcache_req_addr[31:28] == 4'h8 ||
                                        dcache_req_addr[31:28] == 4'ha)) && ~wait_cache_flush;
-
-  assign  miss_req_offset         = dcache_req_addr[`CONFIG_DCACHE_BLOCKS_WIDTH+1:2];
-
-  assign  miss_req_index          = dcache_req_addr[`CONFIG_DCACHE_BLOCKS_WIDTH+
-                                                  `CONFIG_DCACHE_SETS_WIDTH+1:
-                                                  `CONFIG_DCACHE_BLOCKS_WIDTH+2];
-
-  assign  miss_req_tag            = dcache_req_addr[`DATA_WIDTH-1:
-                                    `CONFIG_DCACHE_BLOCKS_WIDTH+`CONFIG_DCACHE_SETS_WIDTH+2];
 
   // refill cache
   wire     update_cond;
@@ -486,7 +472,7 @@ module ysyx_25030067_dcache (
       always @(posedge clock) begin
         if (reset) begin
           validArray[k] <= {`CONFIG_DCACHE_ASSOCIATIVITYS{1'b0}};
-        end else if (miss_req_index == k && update_cond) begin
+        end else if (index == k && update_cond) begin
           validArray[k][miss_req_way] <= 1'b1;
         end
       end
@@ -500,7 +486,9 @@ module ysyx_25030067_dcache (
           dirtyArray[k][flush_way] <= 1'b0;
         end else if (index == k && dirty_update_cond) begin
           dirtyArray[k][way] <= 1'b1;
-        end else if (miss_req_index == k && miss_dirty_update) begin
+        end else if (index == k && miss_dirty_update) begin
+          // if ((index == 'h4) && (dcache_req_addr[31:28] == 'h8))
+          //   $display("req addr %h dirty %h tag %h", dcache_req_addr, is_write_req, tag);
           dirtyArray[k][miss_req_way] <= is_write_req;
         end
       end
@@ -508,8 +496,11 @@ module ysyx_25030067_dcache (
       // only when refill dataArray update tagArray
       // need not flush or reset
       always @(posedge clock) begin
-        if (miss_req_index == k && update_cond) begin
-          tagArray[k][miss_req_way] <= miss_req_tag;
+        if (index == k && update_cond) begin
+          // if ((index == 'h4) && (dcache_req_addr[31:28] == 'h8))
+          //   $strobe("index %h way %h req_addr %h dirty %h tag %h data %h", index, miss_req_way, dcache_req_addr,
+          //             dirtyArray[index][miss_req_way], tagArray[index][miss_req_way], dcache_req_data);
+          tagArray[k][miss_req_way] <= tag;
         end
       end
       // fifo_ptr
@@ -518,7 +509,7 @@ module ysyx_25030067_dcache (
       always @(posedge clock) begin
         if (reset) begin
           fifo_ptr[k] <= {`CONFIG_DCACHE_ASSOCIATIVITYS_WIDTH{1'b0}};
-        end else if (miss_req_index == k && fifo_ptr_update_cond) begin
+        end else if (index == k && fifo_ptr_update_cond) begin
           fifo_ptr[k] <= next_fifo_ptr[k];
         end
       end
@@ -543,25 +534,23 @@ module ysyx_25030067_dcache (
   wire    [`DATA_WIDTH-1:0] hit_mask_data;
   assign mask = {{8{dcache_wstrb[3]}}, {8{dcache_wstrb[2]}},
                 {8{dcache_wstrb[1]}}, {8{dcache_wstrb[0]}}};
-  assign miss_mask_data = (dataArray[miss_req_index][miss_req_way][miss_req_offset] & (~mask))  |
+  assign miss_mask_data = (dataArray[index][miss_req_way][offset] & (~mask))  |
                           (dcache_req_data & mask);
   assign hit_mask_data  = (dataArray[index][way][offset] & (~mask)) | (dcache_req_data & mask);
 
   always @(posedge clock) begin
     if (fill_data_valid && !uncache_addr) begin
-      dataArray[miss_req_index][miss_req_way][refill_ptr]  <= dcache_rdata_i;
+      dataArray[index][miss_req_way][refill_ptr]  <= dcache_rdata_i;
     end else if (valid && is_write_req && mshr == RESPONSE && !uncache_addr) begin
-      dataArray[miss_req_index][miss_req_way][miss_req_offset] <= miss_mask_data;
+      dataArray[index][miss_req_way][offset] <= miss_mask_data;
     end else if (valid && hit && is_write_req && !uncache_addr) begin
       dataArray[index][way][offset] <= hit_mask_data;
     end
   end
 
   always @(posedge clock) begin
-    if (flush_way_start)
+    if (flush_way_start || refill_ptr_reset)
       refill_ptr <= 'b0;
-    if (refill_ptr_reset)
-      refill_ptr <= offset;
     else if (refill_ptr_update)
       refill_ptr <= next_refill_ptr;
   end
@@ -569,4 +558,33 @@ module ysyx_25030067_dcache (
 
   assign wait_cache_flush = flush_state != F_IDLE;
 
+  `ifdef CONFIG_TRACE_PERFORMANCE
+    import "DPI-C"  function  void  dcache_hit_count();
+    import "DPI-C"  function  void  dcache_miss_count();
+    import "DPI-C"  function  void  dcache_req_count();
+    import "DPI-C"  function  void  dcache_penalty_count();
+    reg trace_valid;
+    always @ (posedge clock)
+    begin
+      if (hit && trace_valid) begin
+        dcache_hit_count();
+      end
+      if (!hit && trace_valid) begin
+        dcache_miss_count();
+      end
+      if (mshr != READY) begin
+        dcache_penalty_count();
+      end
+    end
+    always @(posedge clock) begin
+      if (reset) begin
+        trace_valid <= 1'b0;
+      end else if (!valid && valid_next_state) begin
+        dcache_req_count();
+        trace_valid <= 1'b1;
+      end else begin
+        trace_valid <= 1'b0;
+      end
+    end
+  `endif
 endmodule

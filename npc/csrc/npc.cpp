@@ -35,6 +35,10 @@ int64_t miss_cnt = 0;
 int64_t penalty_cnt = 0;
 int64_t total_inst_cnt = 0;
 int64_t stall_cnt = 0;
+int64_t dcache_hit_cnt = 0;
+int64_t dcache_miss_cnt = 0;
+int64_t dcache_penalty_cnt = 0;
+int64_t dcache_req_cnt = 0;
 
 extern "C" void ending(int num) { e = num; }
 extern "C" void putch(int ch) { putchar(ch); }
@@ -145,10 +149,13 @@ sim_exit(){
         fprintf(fp, "DEFAULT Instructions Ratio: %.04f", default_inst_cnt / total_inst);
         fprintf(fp, "Memory Access Cycle: %ld, average memory access cycle: %.04f", mem_cycle_cnt, (double)mem_cycle_cnt / lsu_load_cnt);
         fprintf(fp, "icache hit Ratio: %.04f", (double)hit_counter / ifu_inst_cnt);
-        fprintf(fp, "Average Memory Access Time: %.04f", (1 - (double)hit_counter / ifu_inst_cnt) * (double)penalty_cnt / miss_cnt + 1);
+        fprintf(fp, "Icache Average Memory Access Time: %.04f", (1 - (double)hit_counter / ifu_inst_cnt) * (double)penalty_cnt / miss_cnt + 1);
+        fprintf(fp, "dcache hit Ratio: %.04f", (double)dcache_hit_cnt / dcache_req_cnt);
+        fprintf(fp, "Dcache Average Memory Access Time: %.04f", (1 - (double)dcache_hit_cnt / dcache_req_cnt) * (double)dcache_penalty_cnt / dcache_miss_cnt + 1);
         fprintf(fp, "综合面积: 29033.900000um^2, 频率: 700MHz");
         fclose(fp);
         printf("hit: %ld, miss: %ld\n", hit_counter, miss_cnt);
+        Log("not stall ipc: %.04f", (double)inst_cnt / (cycle_cnt - stall_cnt));
     #endif // CONFIG_TRACE_PERFORMANCE
 }
 
@@ -316,13 +323,25 @@ extern "C" void penalty_count() {
   ++penalty_cnt;
 }
 void cycle_count(void) {
-    ++cycle_cnt;
+  ++cycle_cnt;
 }
 extern "C" void total_inst_count() {
-    ++total_inst_cnt;
+  ++total_inst_cnt;
 }
 extern "C" void stall_count() {
-    ++stall_cnt;
+  ++stall_cnt;
+}
+extern "C" void dcache_hit_count() {
+  ++dcache_hit_cnt;
+}
+extern "C" void dcache_miss_count() {
+  ++dcache_miss_cnt;
+}
+extern "C" void dcache_penalty_count() {
+  ++dcache_penalty_cnt;
+}
+extern "C" void dcache_req_count() {
+  ++dcache_req_cnt;
 }
 #endif // CONFIG_TRACE_PERFORMANCE
 
