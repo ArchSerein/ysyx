@@ -142,6 +142,13 @@ __attribute__((section("ssbl"))) __attribute__((used)) void _ssbl() {
   _trm_init();
 }
 
+#define MVENDORID_TO_CHARS(id, buf) do { \
+    (buf)[0] = (char)(((id) >>  0) & 0xFF); \
+    (buf)[1] = (char)(((id) >>  8) & 0xFF); \
+    (buf)[2] = (char)(((id) >> 16) & 0xFF); \
+    (buf)[3] = (char)(((id) >> 24) & 0xFF); \
+    (buf)[4] = '\0'; \
+} while (0)
 __attribute__((used))
 static void info() {
     uint32_t mvendorid, marchid;
@@ -156,7 +163,9 @@ static void info() {
         "csrr %0, 0xf12"  // 读取 marchid 寄存器到 marchid 变量
         : "=r"(marchid)    // 输出操作数，将结果放入 marchid
     );
-    printf("%s_%d\n", &mvendorid, marchid);
+    char buf[5];
+    MVENDORID_TO_CHARS(mvendorid, buf);
+    printf("%s_%d\n", buf, marchid);
     asm volatile("sw %0, 0(%1)" : : "r"(marchid), "r"(0x10002008));
     // uint32_t pass = 0;
     // while (pass != 0x0f) {
