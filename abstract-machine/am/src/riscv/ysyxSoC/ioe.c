@@ -16,7 +16,7 @@ static void __am_uart_config(AM_INPUT_CONFIG_T *cfg) { cfg->present = true;  }
 static void __am_gpu_config(AM_GPU_CONFIG_T *cfg) { 
   *cfg = (AM_GPU_CONFIG_T) {
     .present = true, .has_accel = false,
-    .width = 400, .height = 300,
+    .width = 640, .height = 480,
     .vmemsz = 0
   };
 }
@@ -99,7 +99,7 @@ void __am_uart_getchar(AM_UART_RX_T *rx) {
   extern uint8_t getch();
   rx->data = getch();
 }
-  
+
 #define FB_ADDR 0x21000000
 void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
   int x = ctl->x;
@@ -112,7 +112,7 @@ void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
 
   uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
 
-  uint32_t screen_width = 400;
+  uint32_t screen_width = 640;
 
   for (int j = y; j < y + h; j ++) {
     for (int i = x; i < x + w; i ++) {
