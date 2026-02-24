@@ -189,7 +189,8 @@ module ysyx_25030067_icache (
     rdata
   };
   assign ready_o                  = (!valid || (valid_o && deu_ready_i)) && (mshr == READY || mshr == RESPONSE);
-  assign valid_o                  = (hit || (mshr == RESPONSE && !uncache_addr) || (uncache_addr && icache_rvalid_i)) && valid;
+  assign valid_o                  = (hit || (mshr == RESPONSE && !uncache_addr) || (uncache_addr && icache_rvalid_i)) &&
+                                    valid && !has_flush_sign;
 
   `ifdef CONFIG_TRACE_PERFORMANCE
     import "DPI-C"  function  void  hit_cnt();

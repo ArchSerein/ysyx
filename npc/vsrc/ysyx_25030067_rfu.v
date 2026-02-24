@@ -219,7 +219,7 @@ module ysyx_25030067_rfu (
     };
 
     assign rfu_ready_o = !valid || (valid && exu_ready_i && !stall);
-    assign valid_o = valid && !stall && !branch_flush;
+    assign valid_o = valid && !stall && !has_flush_sign;
     assign rfu_excp_bus_o = deu_excp_bus;
 
     `ifdef CONFIG_TRACE_PERFORMANCE

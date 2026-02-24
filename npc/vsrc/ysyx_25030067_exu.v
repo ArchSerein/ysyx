@@ -220,7 +220,7 @@ module ysyx_25030067_exu (
     assign no_mem_req        = !(arvalid_o || awvalid_o || wvalid_o);
     assign handshake_success = (arvalid_o && arready_i) || (awvalid_o && awready_i && wvalid_o && wready_i);
     assign idle              = no_mem_req || handshake_success || handshake_state;
-    assign valid_o           = valid && idle;
+    assign valid_o           = valid && idle && (~has_flush_sign);
     assign exu_ready_o       = !valid || (valid_o && lsu_ready_i);
     assign exu_excp_bus_o    = { rfu_excp_bus[4], store_amo_addr_misalign,
                                  load_addr_misalign, rfu_excp_bus[3:0]};

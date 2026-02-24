@@ -359,7 +359,7 @@ module ysyx_25030067_deu (
       deu_br_taken
     };
 
-    assign valid_o = valid && !branch_flush;
+    assign valid_o = valid && !has_flush_sign;
     assign deu_ready_o = !valid || (valid_o && rfu_ready_i);
     assign deu_excp_bus_o = {
       inst_ecall,

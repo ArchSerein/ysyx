@@ -166,7 +166,7 @@ module ysyx_25030067_lsu (
     assign lsu_gpr_forward_valid = valid && (ms_rd != 5'b0) && ms_gr_we;
     assign lsu_valid = valid && ms_csr_we;
 
-    assign valid_o = condition;
+    assign valid_o = condition && (~has_flush_sign);
     assign lsu_ready_o = !valid || (condition && wbu_ready_i);
     assign lsu_forward_bus = { lsu_gpr_forward_valid, lsu_valid, stall, ms_rd, ms_csr_addr, final_result };
 endmodule
