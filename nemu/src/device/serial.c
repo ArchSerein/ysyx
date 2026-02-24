@@ -23,6 +23,31 @@
 
 static uint8_t *serial_base = NULL;
 
+/*
+// TODO:
+// Add UART input functionality
+
+#define QUEUE_SIZE 1024
+static char queue[QUEUE_SIZE] = {};
+static int f = 0, r = 0;
+void serial_enqueue(char ch) {
+  int next = (r + 1) % QUEUE_SIZE;
+  if (next != f) {
+    // not full
+    queue[r] = ch;
+    r = next;
+  }
+}
+
+static char serial_dequeue() {
+  char ch = 0xff;
+  if (f != r) {
+    ch = queue[f];
+    f = (f + 1) % QUEUE_SIZE;
+  }
+  return ch;
+}
+*/
 
 static void serial_putc(char ch) {
   MUXDEF(CONFIG_TARGET_AM, putch(ch), putc(ch, stderr));
@@ -34,6 +59,7 @@ static void serial_io_handler(uint32_t offset, int len, bool is_write) {
     /* We bind the serial port with the host stderr in NEMU. */
     case CH_OFFSET:
       if (is_write) serial_putc(serial_base[0]);
+      // else serial_base[0] = serial_dequeue();
       else panic("do not support read");
       break;
     default: panic("do not support offset = %d", offset);

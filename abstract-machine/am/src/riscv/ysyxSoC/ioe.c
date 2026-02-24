@@ -96,7 +96,7 @@ void __am_input_keybrd(AM_INPUT_KEYBRD_T *kbd) {
 }
 
 void __am_uart_getchar(AM_UART_RX_T *rx) {
-  extern uint8_t getch();
+  // extern uint8_t getch();
   rx->data = getch();
 }
 
