@@ -1,5 +1,5 @@
-`include "csr.vh"
-`include "riscv_param.vh"
+`include "ysyx_25030067_csr.vh"
+`include "ysyx_25030067_riscv_param.vh"
 
 module ysyx_25030067_core (
     input                       clock,

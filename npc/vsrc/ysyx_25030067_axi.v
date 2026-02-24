@@ -1,4 +1,4 @@
-`include "./include/generated/autoconf.vh"
+`include "autoconf.vh"
 module ysyx_25030067_axi (
     input                           clock,
     input                           reset,

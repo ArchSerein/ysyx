@@ -153,7 +153,7 @@ module ysyx_25030067_wbu (
         import "DPI-C" function void inst_count();
         always @(posedge clock)
         begin
-            if (!reset && valid)
+            if (!reset && lsu_valid_i && wbu_ready_o)
                 inst_count();
         end
     `endif
