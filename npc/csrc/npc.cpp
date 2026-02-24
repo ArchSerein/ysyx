@@ -47,13 +47,13 @@ static void update_register_array();
 #ifdef CONFIG_TRACE_WAVE
 bool is_open_trace_wave = false;
 void open_trace_wave(uint32_t pc) {
-    if (!is_open_trace_wave && pc == 0xa0018180) {
+    if (!is_open_trace_wave && pc == WAVE_PC_START) {
         is_open_trace_wave = true;
         Log("open trace wave");
     }
 }
 void close_trace_wave(uint32_t pc) {
-    // if (is_open_trace_wave && ()) {
+    // if (is_open_trace_wave && pc == WAVE_PC_END) {
     //     is_open_trace_wave = false;
     //     Log("close trace wave");
     // }
