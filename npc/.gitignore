@@ -10,7 +10,7 @@
 !*.hpp
 !.gitignore
 !README.md
-!*.txt
+*.txt
 formal-verification/
 build/
 include/
