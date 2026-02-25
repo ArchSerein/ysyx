@@ -1,4 +1,3 @@
-/*
 `include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_div (
   input                           clock,
@@ -9,7 +8,6 @@ module ysyx_25030067_div (
   input   [`DATA_WIDTH-1:0]       dividend,
   input   [`DATA_WIDTH-1:0]       divisor,
 
-  input                           EN_result,
   output  [2*`DATA_WIDTH-1:0]     result,
   output                          finish
 );
@@ -48,7 +46,7 @@ module ysyx_25030067_div (
   assign  inc_en =  (counter == 6'h0 && EN_start) ||
                     (counter >= 6'h1 && counter <= 6'h21);
 
-  assign  clr_en =  (counter == 6'h22 && EN_result) | reset;
+  assign  clr_en =  counter == 6'h22 || reset;
 
   assign  next_count_val =  (counter + {5'b0, inc_en}) & {6{~clr_en}};
 
@@ -59,14 +57,14 @@ module ysyx_25030067_div (
   wire  sign_q_val;
   assign sign_q_val = is_signed ? (dividend_sign ^ divisor_sign) : 1'b0;
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 6'b0)
       sign_q        <= sign_q_val;
   end
 
   wire  sign_r_val;
   assign sign_r_val = is_signed ? dividend_sign : 1'b0;
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 6'b0)
       sign_r        <= sign_r_val;
   end
 
@@ -91,20 +89,20 @@ module ysyx_25030067_div (
 
   assign rem_fix         = partial_rem[`DATA_WIDTH] ? {1'b0, div_pos} : 'b0;
 
-  assign fire_div_step   = EN_start || (counter > 6'h0 && counter < 6'h21);
+  assign fire_div_step   = EN_start && counter < 6'h21;
 
   assign partial_rem_val = { partial_rem[`DATA_WIDTH-1:0],quotient[`DATA_WIDTH-1] };
 
   assign partial_rem_add = ~partial_rem[`DATA_WIDTH] ? { 1'b1, div_neg } : { 1'b0, div_pos };
 
-  assign next_partial_rem=  EN_start ? 'b0 :
+  assign next_partial_rem=  (EN_start && counter == 6'b0) ? 'b0 :
                             is_last_fix ? (partial_rem[`DATA_WIDTH] ? partial_rem + {1'b0, div_pos} :
                                                                       partial_rem) :
                             (partial_rem_val + partial_rem_add);
 
   assign quotient_val    = { quotient[`DATA_WIDTH-2:0], 1'b0 };
 
-  assign next_quotient   =  EN_start ? dvd_abs :
+  assign next_quotient   =  (EN_start && counter == 6'b0) ? dvd_abs :
                             { quotient_val[`DATA_WIDTH-1:1], ~next_partial_rem[`DATA_WIDTH] };
 
 
@@ -119,14 +117,14 @@ module ysyx_25030067_div (
   end
 
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 6'b0)
       div_pos <= div_abs;
   end
 
   assign neg_div_abs = ~div_abs + 'b1;
 
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 6'b0)
       div_neg <= neg_div_abs;
   end
 
@@ -136,7 +134,6 @@ module ysyx_25030067_div (
 
   assign final_r = sign_r ? (~partial_rem[`DATA_WIDTH-1:0] + 1'b1) : partial_rem[`DATA_WIDTH-1:0];
 
-  assign result  = { final_q, final_r };
+  assign result  = { final_r, final_q };
 
 endmodule
-*/

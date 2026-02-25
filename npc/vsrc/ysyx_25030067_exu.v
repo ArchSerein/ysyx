@@ -56,6 +56,7 @@ module ysyx_25030067_exu (
     wire [11:0]           ex_csr_addr;
     wire [31:0]           ex_csr_wdata;
     wire [ 2:0]           ex_alu_op;
+    wire [ 2:0]           ex_mul_div_op;
     wire                  ex_xret_flush;
     wire                  ex_res_from_pre;
     wire [31:0]           ex_snpc;
@@ -78,6 +79,7 @@ module ysyx_25030067_exu (
       ex_rd,
       ex_branch,
       ex_alu_op,
+      ex_mul_div_op,
       ex_alu_src1,
       ex_alu_src2,
       ex_rs2_value,
@@ -94,7 +96,9 @@ module ysyx_25030067_exu (
       ex_xret_flush
     } = rfu_exu_bus;
 
-    wire [31:0] ex_alu_result;
+    wire [`DATA_WIDTH-1:0] ex_alu_result;
+    wire [`DATA_WIDTH-1:0] ex_mul_result;
+    wire [`DATA_WIDTH-1:0] ex_div_result;
     ysyx_25030067_alu ysyx_25030067_alu_module (
         .alu_op_i       (ex_alu_op),
         .alu_a_i        (ex_alu_src1),
@@ -102,6 +106,46 @@ module ysyx_25030067_exu (
         .alu_result_o   (ex_alu_result)
     );
 
+    wire                      mul_finish;
+    wire                      div_finish;
+    wire                      EN_start_mul;
+    wire                      EN_start_div;
+    wire                      is_signed;
+    wire  [2*`DATA_WIDTH-1:0] temp_mul_result;
+    wire  [2*`DATA_WIDTH-1:0] temp_div_result;
+    ysyx_25030067_mul ysyx_25030067_mul_module (
+      .clock          (clock),
+      .reset          (reset),
+
+      .EN_start       (EN_start_mul),
+      .is_signed      (is_signed),
+      .src1           (ex_alu_src1),
+      .src2           (ex_alu_src2),
+
+      .finish         (mul_finish),
+      .result         (temp_mul_result)
+    );
+    ysyx_25030067_div ysyx_25030067_div_module (
+      .clock          (clock),
+      .reset          (reset),
+
+      .EN_start       (EN_start_div),
+      .is_signed      (is_signed),
+      .dividend       (ex_alu_src1),
+      .divisor        (ex_alu_src2),
+
+      .finish         (div_finish),
+      .result         (temp_div_result)
+    );
+
+    assign EN_start_mul = ~ex_mul_div_op[2] & valid &
+                          (ex_mul_div_op[1] | ex_mul_div_op[0]);
+    assign EN_start_div = ex_mul_div_op[2] & valid;
+    assign is_signed    = ex_mul_div_op[0];
+    assign ex_mul_result= ex_mul_div_op[1] ?  temp_mul_result[2*`DATA_WIDTH-1:`DATA_WIDTH] :
+                                              temp_mul_result[`DATA_WIDTH-1:0];
+    assign ex_div_result= ex_mul_div_op[1] ?  temp_div_result[2*`DATA_WIDTH-1:`DATA_WIDTH] :
+                                              temp_div_result[`DATA_WIDTH-1:0];
     wire [ 3:0] sb_we, sh_we;
     wire [ 1:0] mem_addr_mask;
 
@@ -144,7 +188,10 @@ module ysyx_25030067_exu (
     assign ex_br_taken_o  = ex_branch;
 
     wire [31:0] final_result;
-    assign final_result = ex_res_from_pre ? ex_final_result : ex_alu_result;
+    assign final_result = {32{ex_res_from_pre}} & ex_final_result |
+                          {32{~EN_start_mul & ~EN_start_div & ~ex_res_from_pre}} & ex_alu_result |
+                          {32{EN_start_mul}} & ex_mul_result |
+                          {32{EN_start_div}} & ex_div_result;
 
     wire is_skip_difftest;
     assign exu_lsu_bus_o = {
@@ -166,6 +213,7 @@ module ysyx_25030067_exu (
 
     wire    idle;
     wire    no_mem_req;
+    wire    no_mul_div;
     wire    handshake_success;
     wire    has_flush_sign;
     always @(posedge clock) begin
@@ -218,8 +266,12 @@ module ysyx_25030067_exu (
                                      1'b0;
 
     assign no_mem_req        = !(arvalid_o || awvalid_o || wvalid_o);
+    assign no_mul_div        = ~EN_start_mul & ~EN_start_div;
     assign handshake_success = (arvalid_o && arready_i) || (awvalid_o && awready_i && wvalid_o && wready_i);
-    assign idle              = no_mem_req || handshake_success || handshake_state;
+    // TODO:
+    // wait fix (mul and div need stall)
+    assign idle              = (no_mem_req & no_mul_div) || handshake_success || handshake_state ||
+                                (EN_start_mul & mul_finish) || (EN_start_div & div_finish);
     assign valid_o           = valid && idle && (~has_flush_sign);
     assign exu_ready_o       = !valid || (valid_o && lsu_ready_i);
     assign exu_excp_bus_o    = { rfu_excp_bus[4], store_amo_addr_misalign,

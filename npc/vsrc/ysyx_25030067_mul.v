@@ -1,4 +1,3 @@
-/*
 `include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_mul (
   input                           clock,
@@ -9,7 +8,6 @@ module ysyx_25030067_mul (
   input   [`DATA_WIDTH-1:0]       src1,
   input   [`DATA_WIDTH-1:0]       src2,
 
-  input                           EN_result,
   output  [2*`DATA_WIDTH-1:0]     result,
   output                          finish
 );
@@ -50,7 +48,7 @@ module ysyx_25030067_mul (
          (counter >= 5'd1  && counter <= 5'd17);
 
   assign clr_en =
-         (counter == 5'd18 && EN_result) | reset;
+         counter == 5'd18 || reset;
 
   assign next_count_val =
          (counter + {4'b0, inc_en}) & {5{~clr_en}};
@@ -64,19 +62,19 @@ module ysyx_25030067_mul (
 
   assign m_pos_val = {src1_ext, 35'b0};
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 5'b0)
       m_pos <= m_pos_val;
   end
 
   assign neg_src1   = ~src1_ext + 'b1;
   assign m_neg_val  = {neg_src1, 35'b0};
   always @(posedge clock) begin
-    if (EN_start)
+    if (EN_start && counter == 5'b0)
       m_neg <= m_neg_val;
   end
 
   wire fire_mul_step;
-  assign fire_mul_step = EN_start || (counter > 5'h0 && counter < 5'h12);
+  assign fire_mul_step = EN_start && counter < 5'h12;
   always @(posedge clock) begin
     if (fire_mul_step)
       p <= next_p;
@@ -92,8 +90,7 @@ module ysyx_25030067_mul (
                       {UNIT{(pr == 3'b100)}} & (m_neg << 1);
 
   assign booth_sum  = p + booth_add;
-  assign next_p     = EN_start ? { 34'b0, src2_ext, 1'b0 } :
+  assign next_p     = (EN_start && counter == 5'b0) ? { 34'b0, src2_ext, 1'b0 } :
                                  {{2{booth_sum[2*`DATA_WIDTH+4]}}, booth_sum[2*`DATA_WIDTH+4:2]};
   assign result     = p[2*`DATA_WIDTH:1];
 endmodule
-*/

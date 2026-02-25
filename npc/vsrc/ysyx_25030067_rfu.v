@@ -43,6 +43,7 @@ module ysyx_25030067_rfu (
     wire [31:0] rfu_imm;
     wire        rfu_res_from_compare;
     wire [ 2:0] rfu_alu_op;
+    wire [ 2:0] rfu_mul_div_op;
     wire        rfu_src1_from_pre;
     wire        rfu_res_from_csr;
     wire        rfu_res_from_mem;
@@ -76,6 +77,7 @@ module ysyx_25030067_rfu (
       rfu_csr_op,
       rfu_res_from_compare,
       rfu_alu_op,
+      rfu_mul_div_op,
       rfu_src1_from_pre,
       rfu_res_from_mem,
       rfu_res_from_csr,
@@ -202,6 +204,7 @@ module ysyx_25030067_rfu (
       rfu_rd,
       rfu_branch,
       rfu_alu_op,
+      rfu_mul_div_op,
       rfu_src1_value,
       rfu_src2_value,
       rfu_rs2_value,

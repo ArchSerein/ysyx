@@ -8,6 +8,7 @@
 #include "debug.hpp"
 #include <cstdio>
 #include <nvboard.h>
+#include "../include/generated/autoconf.h"
 
 static TOP_NAME top;
 #ifdef CONFIG_TRACE_WAVE
@@ -47,7 +48,7 @@ static void update_register_array();
 #ifdef CONFIG_TRACE_WAVE
 bool is_open_trace_wave = false;
 void open_trace_wave(uint32_t pc) {
-    if (!is_open_trace_wave && pc == WAVE_PC_START) {
+    if (!is_open_trace_wave && pc == CONFIG_WAVE_PC_START) {
         is_open_trace_wave = true;
         Log("open trace wave");
     }

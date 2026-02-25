@@ -115,6 +115,14 @@ module ysyx_25030067_deu (
     wire            inst_sltiu;
     wire            inst_slt;
     wire            inst_sltu;
+
+    wire            inst_mul;
+    wire            inst_mulh;
+    wire            inst_mulhu;
+    wire            inst_div;
+    wire            inst_divu;
+    wire            inst_rem;
+    wire            inst_remu;
     // privileged instruction
     wire            inst_ecall;
     wire            inst_mret;
@@ -211,6 +219,22 @@ module ysyx_25030067_deu (
                                deu_funct7 == 7'b0000000;
     assign inst_sltu      = deu_opcode == 7'b0110011 && deu_funct3 == 3'b011 &&
                               deu_funct7 == 7'b0000000;
+    // mul div
+    assign inst_mulhu     = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b011;
+    assign inst_mulh      = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b001;
+    assign inst_mul       = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b000;
+    assign inst_div       = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b100;
+    assign inst_divu      = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b101;
+    assign inst_rem       = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b110;
+    assign inst_remu      = deu_opcode == 7'b0110011 && deu_funct7 == 7'b0000001 &&
+                              deu_funct3 == 3'b111;
+
     // privileged instruction
     assign inst_ecall     = deu_opcode == 7'b1110011 && deu_funct3 == 3'b000 &&
                                deu_funct7 == 7'b0000000 && deu_rd == 5'b00000 &&
@@ -243,6 +267,8 @@ module ysyx_25030067_deu (
                       inst_bltu| inst_bgeu|
                       inst_slti| inst_sltiu|
                       inst_slt | inst_sltu |
+                      inst_mul | inst_mulh | inst_mulhu |
+                      inst_div | inst_divu | inst_rem | inst_remu |
                       inst_csrrw | inst_csrrs |
                       inst_fence_i;
 
@@ -271,6 +297,11 @@ module ysyx_25030067_deu (
                     {3{inst_srl | inst_srli}} & 3'b100 |
                     {3{inst_sra | inst_srai}} & 3'b011 |
                     {3{inst_sub}} & 3'b001;
+
+    wire  [2:0] mul_div_op;
+    assign mul_div_op = { inst_div | inst_divu | inst_remu | inst_rem,
+                          inst_mulh | inst_mulhu | inst_remu | inst_rem,
+                          inst_mulh | inst_div | inst_rem | inst_mul };
 
     wire src1_is_pc;
     assign src1_is_pc = deu_optype == `INST_J || deu_optype == `INST_B || inst_auipc;
@@ -345,6 +376,7 @@ module ysyx_25030067_deu (
       csr_op,
       res_from_compare,
       alu_op,
+      mul_div_op,
       src1_from_pre,
       res_from_mem,
       res_from_csr,
