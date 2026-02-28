@@ -17,6 +17,7 @@ static TOP_NAME top;
 #endif // CONFIG_TRACE_WAVE
 
 uint32_t deu_inst;
+uint32_t wbu_pc;
 uint32_t register_file[37];
 int e = 0;
 int64_t inst_cnt = 0;
@@ -87,7 +88,7 @@ single_cycle(inst_i *cur_inst) {
 
     if (cur_inst != NULL)
     {
-        cur_inst->pc = get_pc_reg();
+        cur_inst->pc = wbu_pc;
         cur_inst->inst = get_inst_reg();
     }
     #ifdef CONFIG_TRACE_WAVE
@@ -211,7 +212,7 @@ isa_reg_str2val(const char *s) {
 
   if(strcmp(reg_name, "pc") == 0)
   {
-    return get_pc_reg();
+    return wbu_pc;
   }
   return 0;
 }
@@ -348,4 +349,7 @@ extern "C" void dcache_req_count() {
 
 extern "C" void get_inst(uint32_t inst) {
   deu_inst = inst;
+}
+extern "C" void get_pc(uint32_t pc) {
+  wbu_pc = pc;
 }

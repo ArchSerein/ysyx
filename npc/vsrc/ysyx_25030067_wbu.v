@@ -158,4 +158,9 @@ module ysyx_25030067_wbu (
         end
     `endif
 
+    import "DPI-C" function void get_pc(input int pc);
+    always @(posedge clock) begin
+      if (!reset && lsu_valid_i && wbu_ready_o)
+        get_pc(wbu_pc);
+    end
 endmodule
