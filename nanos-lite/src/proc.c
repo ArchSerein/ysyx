@@ -148,7 +148,12 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   }
   #endif
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
+  #ifdef HAS_VME
   uintptr_t sp = setting(uend, (uintptr_t)end, argv, envp);
+  #else
+  uintptr_t uend = (uintptr_t)end + 8 * PGSIZE;
+  uintptr_t sp = setting(     uend, uend, argv, envp);
+  #endif
   pcb->cp->GPRx = sp;
 }
 

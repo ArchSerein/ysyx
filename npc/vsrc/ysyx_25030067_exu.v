@@ -285,7 +285,10 @@ module ysyx_25030067_exu (
     assign exu_forward_bus       = { exu_gpr_forward_valid, exu_valid, stall,
                                      ex_rd, ex_csr_addr, final_result };
 
-    assign is_skip_difftest = (awvalid_o || arvalid_o) && (ex_alu_result[31:16] == 16'h1000 || ex_alu_result[31:16] == 16'h0200);
+    assign is_skip_difftest = (awvalid_o || arvalid_o) && ( ex_alu_result[31:16] == 16'h1000 ||
+                                                            ex_alu_result[31:16] == 16'h0200 ||
+                                                            ex_alu_result[31:24] ==  8'h21   ||
+                                                            ex_alu_result[31:16] == 16'h1001);
     `ifdef CONFIG_TRACE_PERFORMANCE
         import "DPI-C" function void exu_alu_count();
         always @(valid)

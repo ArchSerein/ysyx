@@ -3,7 +3,7 @@ AM_SRCS := riscv/ysyxSoC/start.S \
            riscv/ysyxSoC/trm.c \
 		   riscv/ysyxSoC/ioe.c \
 		   riscv/ysyxSoC/timer.c \
-           platform/dummy/vme.c \
+           riscv/ysyxSoC/vme.c \
            platform/dummy/mpe.c \
 		   riscv/ysyxSoC/cte.C
 
