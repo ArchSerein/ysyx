@@ -152,6 +152,7 @@ static int decode_exec(Decode *s) {
                                                                 uint32_t carry = (low >> 16) + (mid1 & 0xffff) + (mid2 & 0xffff); \
                                                                 R(rd) = high + (mid2 >> 16) + (mid1 >> 16) + (carry >> 16));
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
+  INSTPAT("0000000 00000 00000 001 00000 00011 11", fence.i, N, );
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   INSTPAT_END();
 
