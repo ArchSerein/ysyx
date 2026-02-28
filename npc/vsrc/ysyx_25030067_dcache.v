@@ -90,11 +90,17 @@ module ysyx_25030067_dcache (
 
   localparam TAG_WIDTH         = `DATA_WIDTH - `CONFIG_DCACHE_BLOCKS_WIDTH -
                                                 `CONFIG_DCACHE_SETS_WIDTH - 'h2;
-  reg   [`DATA_WIDTH-1:0]                         dataArray  [0:`CONFIG_DCACHE_SETS-1]
-                                                             [0:`CONFIG_DCACHE_ASSOCIATIVITYS-1]
-                                                             [0:`CONFIG_DCACHE_BLOCKS-1];
-  reg   [TAG_WIDTH-1  :0]                         tagArray   [0:`CONFIG_DCACHE_SETS-1]
-                                                             [0:`CONFIG_DCACHE_ASSOCIATIVITYS-1];
+  wire  [`DATA_WIDTH-1:0]                         data_rd    [0:`CONFIG_DCACHE_ASSOCIATIVITYS-1];
+  wire  [TAG_WIDTH-1  :0]                         tag_rd     [0:`CONFIG_DCACHE_ASSOCIATIVITYS-1];
+  wire  [`CONFIG_DCACHE_ASSOCIATIVITYS_WIDTH-1:0] wb_way_sel;
+  wire  [`CONFIG_DCACHE_SETS_WIDTH-1:0]           wb_index_sel;
+  wire  [`CONFIG_DCACHE_SETS_WIDTH+`CONFIG_DCACHE_BLOCKS_WIDTH-1:0] data_bank_addr;
+  wire  [`DATA_WIDTH-1:0]                         data_wr_data;
+  wire                                            data_fill_wr;
+  wire                                            data_miss_wr;
+  wire                                            data_hit_wr;
+  wire                                            use_refill_ptr;
+  wire  [`CONFIG_DCACHE_BLOCKS_WIDTH-1:0]         data_blk_sel;
   reg   [`CONFIG_DCACHE_ASSOCIATIVITYS-1:0]       validArray [0:`CONFIG_DCACHE_SETS-1];
   reg   [`CONFIG_DCACHE_ASSOCIATIVITYS-1:0]       dirtyArray [0:`CONFIG_DCACHE_SETS-1];
   reg   [`CONFIG_DCACHE_ASSOCIATIVITYS_WIDTH-1:0] fifo_ptr   [0:`CONFIG_DCACHE_SETS-1];
@@ -199,7 +205,7 @@ module ysyx_25030067_dcache (
   genvar i;
   generate
     for (i = 0; i < `CONFIG_DCACHE_ASSOCIATIVITYS; i++) begin : g_tag_cmp
-      assign tag_cmp_res[i] = ((tag == (tagArray[index][i])) && validArray[index][i]);
+      assign tag_cmp_res[i] = (tag == tag_rd[i]) && validArray[index][i];
     end
   endgenerate
 
@@ -379,10 +385,11 @@ module ysyx_25030067_dcache (
   // read
   assign  dcache_arready_o        = (mshr == READY) && ~valid;
 
-  assign  dcache_rvalid_o         = valid && (hit || mshr == RESPONSE || (resp_succ && uncache_addr));
+  assign  dcache_rvalid_o         = valid && (hit || mshr == RESPONSE ||
+                                              (resp_succ && uncache_addr));
 
   assign  dcache_rdata_o          = (resp_succ && uncache_addr) ? dcache_rdata_i :
-                                    dataArray[index][way][offset];
+                                    data_rd[way];
 
   assign  dcache_rresp_o          = hit ? DATA_OK : dcache_rresp_i;
 
@@ -411,7 +418,8 @@ module ysyx_25030067_dcache (
   assign  dcache_rready_o         = mshr == WAITFILLRESP;
 
   // read or write resp from memory
-  assign  dcache_awvalid_o        = (mshr == WRITEBACK) || (mshr == WAITWREQCOMPLETE && ~awaddr_handshake_done) ||
+  assign  dcache_awvalid_o        = (mshr == WRITEBACK) || (mshr == WAITWREQCOMPLETE &&
+                                                            ~awaddr_handshake_done) ||
                                     (flush_state == F_SENDREQ) ||
                                     (flush_state == F_WAITREQCOMPLETE && ~awaddr_handshake_done);
 
@@ -422,15 +430,11 @@ module ysyx_25030067_dcache (
   assign  dcache_awlen_o          = uncache_addr ? 8'b0 : 8'(`CONFIG_DCACHE_BLOCKS-1);
 
   assign  dcache_awaddr_o         = uncache_addr ? dcache_req_addr :
-                                    mshr == WAITFLUSH ? {tagArray[flush_index][flush_way],
-                                            flush_index, {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}}  :
-                                    {tagArray[index][miss_req_way], index,
+                                    {tag_rd[wb_way_sel], wb_index_sel,
                                       {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}};
 
-  assign  dcache_wdata_o          = uncache_addr ?  dcache_req_data :
-                                    mshr == WAITFLUSH ? dataArray[flush_index][flush_way]
-                                                                 [refill_ptr] :
-                                    dataArray[index][miss_req_way][refill_ptr];
+  assign  dcache_wdata_o          = uncache_addr ? dcache_req_data :
+                                    data_rd[wb_way_sel];
 
   assign  dcache_wvalid_o         = (mshr == WRITEBACK) ||
                                     (mshr == WAITWREQCOMPLETE && ~wdata_handshake_done) ||
@@ -492,17 +496,6 @@ module ysyx_25030067_dcache (
           dirtyArray[k][miss_req_way] <= is_write_req;
         end
       end
-      // tagArray
-      // only when refill dataArray update tagArray
-      // need not flush or reset
-      always @(posedge clock) begin
-        if (index == k && update_cond) begin
-          // if ((index == 'h4) && (dcache_req_addr[31:28] == 'h8))
-          //   $strobe("index %h way %h req_addr %h dirty %h tag %h data %h", index, miss_req_way, dcache_req_addr,
-          //             dirtyArray[index][miss_req_way], tagArray[index][miss_req_way], dcache_req_data);
-          tagArray[k][miss_req_way] <= tag;
-        end
-      end
       // fifo_ptr
       // select way(FIFO or lsu)
       assign next_fifo_ptr[k] = fifo_ptr[k] + 'b1;
@@ -534,19 +527,55 @@ module ysyx_25030067_dcache (
   wire    [`DATA_WIDTH-1:0] hit_mask_data;
   assign mask = {{8{dcache_wstrb[3]}}, {8{dcache_wstrb[2]}},
                 {8{dcache_wstrb[1]}}, {8{dcache_wstrb[0]}}};
-  assign miss_mask_data = (dataArray[index][miss_req_way][offset] & (~mask))  |
-                          (dcache_req_data & mask);
-  assign hit_mask_data  = (dataArray[index][way][offset] & (~mask)) | (dcache_req_data & mask);
+  assign miss_mask_data = (data_rd[miss_req_way] & ~mask) | (dcache_req_data & mask);
+  assign hit_mask_data  = (data_rd[way] & ~mask) | (dcache_req_data & mask);
 
-  always @(posedge clock) begin
-    if (fill_data_valid && !uncache_addr) begin
-      dataArray[index][miss_req_way][refill_ptr]  <= dcache_rdata_i;
-    end else if (valid && is_write_req && mshr == RESPONSE && !uncache_addr) begin
-      dataArray[index][miss_req_way][offset] <= miss_mask_data;
-    end else if (valid && hit && is_write_req && !uncache_addr) begin
-      dataArray[index][way][offset] <= hit_mask_data;
+  assign  wb_way_sel     = (mshr == WAITFLUSH) ? flush_way : miss_req_way;
+  assign  wb_index_sel   = (mshr == WAITFLUSH) ? flush_index : index;
+  assign  data_fill_wr   = fill_data_valid & ~uncache_addr;
+  assign  data_miss_wr   = valid & is_write_req & (mshr == RESPONSE) & ~uncache_addr;
+  assign  data_hit_wr    = valid & hit & is_write_req & ~uncache_addr;
+  assign  use_refill_ptr = (mshr == WRITEBACK) | (mshr == WAITWREQCOMPLETE) |
+                           (mshr == WAITFILLRESP) | (mshr == WAITFLUSH);
+  assign  data_blk_sel   = use_refill_ptr ? refill_ptr : offset;
+  assign  data_bank_addr = {wb_index_sel, data_blk_sel};
+  assign  data_wr_data   = ({`DATA_WIDTH{data_fill_wr}} & dcache_rdata_i) |
+                           ({`DATA_WIDTH{data_miss_wr}} & miss_mask_data) |
+                           ({`DATA_WIDTH{data_hit_wr}}  & hit_mask_data);
+
+  genvar m;
+  generate
+    for (m = 0; m < `CONFIG_DCACHE_ASSOCIATIVITYS; m = m + 1) begin : g_tag_bank
+      ysyx_25030067_bank #(
+        .DATA_WIDTH (TAG_WIDTH),
+        .DEPTH      (`CONFIG_DCACHE_SETS)
+      ) tag_bank (
+        .clock   (clock),
+        .reset   (reset),
+        .wr_en   (update_cond & (miss_req_way == m)),
+        .addr    (wb_index_sel),
+        .wr_data (tag),
+        .rd_data (tag_rd[m])
+      );
     end
-  end
+  endgenerate
+
+  generate
+    for (m = 0; m < `CONFIG_DCACHE_ASSOCIATIVITYS; m = m + 1) begin : g_data_bank
+      ysyx_25030067_bank #(
+        .DATA_WIDTH (`DATA_WIDTH),
+        .DEPTH      (`CONFIG_DCACHE_SETS * `CONFIG_DCACHE_BLOCKS)
+      ) data_bank (
+        .clock   (clock),
+        .reset   (reset),
+        .wr_en   (((data_fill_wr | data_miss_wr) & (miss_req_way == m)) |
+                   (data_hit_wr & (way == m))),
+        .addr    (data_bank_addr),
+        .wr_data (data_wr_data),
+        .rd_data (data_rd[m])
+      );
+    end
+  endgenerate
 
   always @(posedge clock) begin
     if (flush_way_start || refill_ptr_reset)
