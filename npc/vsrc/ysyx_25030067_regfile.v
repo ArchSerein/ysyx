@@ -18,17 +18,12 @@ module ysyx_25030067_regfile (
     // 在 write back 阶段写入
     always @(posedge clock)
     begin
-        if (reset) begin
-            for (int i = 0; i < 32; i = i + 1) begin
-                regfile[i] <= 32'b0;
-            end
-        end
-        if (reg_wen_i) begin
-            regfile[reg_dst_i] <= reg_wdata_i;
-        end
+      if (reg_wen_i) begin
+          regfile[reg_dst_i] <= reg_wdata_i;
+      end
 
-        // x0 always be zero
-        regfile[0] <= 32'b0;
+      // x0 always be zero
+      regfile[0] <= 32'b0;
     end
 
     // read

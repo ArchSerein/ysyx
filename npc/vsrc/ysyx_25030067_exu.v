@@ -32,7 +32,10 @@ module ysyx_25030067_exu (
     output                              branch_flush,
     output [31:0]                       branch_target,
 
-    output  [`FORWARD_BUS_WIDTH-1:0]    exu_forward_bus,
+    output                              exu_alu_forward_valid,
+    output [`FORWARD_DATA_BUS_WIDTH-1:0] exu_alu_forward_data,
+    output  [`FORWARD_CTRL_BUS_WIDTH-1:0]    exu_forward_ctrl,
+    output  [`FORWARD_DATA_BUS_WIDTH-1:0]    exu_forward_data,
 
     input                               lsu_ready_i,
     output [`EXU_LSU_BUS_WIDTH-1:0]     exu_lsu_bus_o,
@@ -188,10 +191,12 @@ module ysyx_25030067_exu (
     assign ex_br_taken_o  = ex_branch;
 
     wire [31:0] final_result;
-    assign final_result = {32{ex_res_from_pre}} & ex_final_result |
-                          {32{~EN_start_mul & ~EN_start_div & ~ex_res_from_pre}} & ex_alu_result |
-                          {32{EN_start_mul}} & ex_mul_result |
-                          {32{EN_start_div}} & ex_div_result;
+    wire [1:0] res_sel;
+    assign res_sel = {EN_start_mul | EN_start_div, EN_start_mul | ex_res_from_pre};
+    // res_sel: 2'b00=alu, 2'b01=pre, 2'b10=div, 2'b11=mul
+    wire [31:0] res_mux_low  = res_sel[0] ? ex_final_result : ex_alu_result;
+    wire [31:0] res_mux_high = res_sel[0] ? ex_mul_result   : ex_div_result;
+    assign final_result      = res_sel[1] ? res_mux_high    : res_mux_low;
 
     wire is_skip_difftest;
     assign exu_lsu_bus_o = {
@@ -267,9 +272,8 @@ module ysyx_25030067_exu (
 
     assign no_mem_req        = !(arvalid_o || awvalid_o || wvalid_o);
     assign no_mul_div        = ~EN_start_mul & ~EN_start_div;
-    assign handshake_success = (arvalid_o && arready_i) || (awvalid_o && awready_i && wvalid_o && wready_i);
-    // TODO:
-    // wait fix (mul and div need stall)
+    assign handshake_success =  (arvalid_o && arready_i) ||
+                                (awvalid_o && awready_i && wvalid_o && wready_i);
     assign idle              = (no_mem_req & no_mul_div) || handshake_success || handshake_state ||
                                 (EN_start_mul & mul_finish) || (EN_start_div & div_finish);
     assign valid_o           = valid && idle && (~has_flush_sign);
@@ -277,13 +281,19 @@ module ysyx_25030067_exu (
     assign exu_excp_bus_o    = { rfu_excp_bus[4], store_amo_addr_misalign,
                                  load_addr_misalign, rfu_excp_bus[3:0]};
     wire      stall;
+    wire      exu_alu_result_forward_valid;
     wire      exu_gpr_forward_valid;
     wire      exu_valid;
     assign stall                 = ex_res_from_mem && valid;
+    assign exu_alu_result_forward_valid = valid_o && (ex_rd != 5'b0) && ex_gr_we &&
+                                          !ex_res_from_mem && !ex_res_from_pre && no_mul_div;
     assign exu_gpr_forward_valid = valid_o && (ex_rd != 5'b0) && ex_gr_we && !ex_res_from_mem;
     assign exu_valid             = valid && ex_csr_we;
-    assign exu_forward_bus       = { exu_gpr_forward_valid, exu_valid, stall,
-                                     ex_rd, ex_csr_addr, final_result };
+    assign exu_alu_forward_valid = exu_alu_result_forward_valid;
+    assign exu_alu_forward_data  = ex_alu_result;
+    assign exu_forward_ctrl      = { exu_gpr_forward_valid, exu_valid, stall,
+                                     ex_rd, ex_csr_addr };
+    assign exu_forward_data      = final_result;
 
     assign is_skip_difftest = (awvalid_o || arvalid_o) && ( ex_alu_result[31:16] == 16'h1000 ||
                                                             ex_alu_result[31:16] == 16'h0200 ||

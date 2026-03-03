@@ -21,7 +21,8 @@ module ysyx_25030067_wbu (
     output [31:0]                   csr_mcause_o,
     output [31:0]                   csr_mepc_o,
 
-    output [`FORWARD_BUS_WIDTH-1:0] wbu_forward_bus,
+    output [`FORWARD_CTRL_BUS_WIDTH-1:0] wbu_forward_ctrl,
+    output [`FORWARD_DATA_BUS_WIDTH-1:0] wbu_forward_data,
 
     output                          wbu_ready_o
 );
@@ -112,8 +113,10 @@ module ysyx_25030067_wbu (
     wire wbu_valid;
     assign wbu_gpr_forward_valid = valid && (wbu_rd != 5'b0) && rf_we_o;
     assign wbu_valid = valid && csr_we_o;
-    assign wbu_forward_bus = { wbu_gpr_forward_valid, wbu_valid, 1'b0, wbu_rd, wbu_csr_addr, wbu_final_result };
+    assign wbu_forward_ctrl = { wbu_gpr_forward_valid, wbu_valid, 1'b0, wbu_rd, wbu_csr_addr };
+    assign wbu_forward_data = wbu_final_result;
 
+  `ifndef SYNTH
     reg [31:0]  cnt;
     always @(posedge clock) begin
       if (reset) begin
@@ -134,6 +137,7 @@ module ysyx_25030067_wbu (
             ending(2);
           end
     end
+  `endif
 
     `ifdef CONFIG_DIFFTEST
         import "DPI-C" function void is_difftest(input byte difftest, input int pc, input byte skip);
@@ -158,9 +162,11 @@ module ysyx_25030067_wbu (
         end
     `endif
 
+  `ifndef SYNTH
     import "DPI-C" function void get_pc(input int pc);
     always @(posedge clock) begin
       if (!reset && lsu_valid_i && wbu_ready_o)
         get_pc(wbu_pc);
     end
+  `endif
 endmodule

@@ -1,5 +1,5 @@
-`include "../npc/include/generated/autoconf.vh"
-`include "../npc/vsrc/ysyx_25030067_riscv_param.vh"
+`include "autoconf.vh"
+`include "ysyx_25030067_riscv_param.vh"
 module ysyx_25030067_dcache (
   input                           clock,
   input                           reset,

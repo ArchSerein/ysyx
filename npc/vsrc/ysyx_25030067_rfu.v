@@ -24,9 +24,14 @@ module ysyx_25030067_rfu (
     input                           wait_cache_flush,
 
     // data harzard (bypass)
-    input  [`FORWARD_BUS_WIDTH-1:0] exu_forward_bus,
-    input  [`FORWARD_BUS_WIDTH-1:0] lsu_forward_bus,
-    input  [`FORWARD_BUS_WIDTH-1:0] wbu_forward_bus,
+    input                           exu_alu_forward_valid,
+    input  [`FORWARD_DATA_BUS_WIDTH-1:0] exu_alu_forward_data,
+    input  [`FORWARD_CTRL_BUS_WIDTH-1:0] exu_forward_ctrl,
+    input  [`FORWARD_DATA_BUS_WIDTH-1:0] exu_forward_data,
+    input  [`FORWARD_CTRL_BUS_WIDTH-1:0] lsu_forward_ctrl,
+    input  [`FORWARD_DATA_BUS_WIDTH-1:0] lsu_forward_data,
+    input  [`FORWARD_CTRL_BUS_WIDTH-1:0] wbu_forward_ctrl,
+    input  [`FORWARD_DATA_BUS_WIDTH-1:0] wbu_forward_data,
 
     input                           exu_ready_i,
     output [`RFU_EXU_BUS_WIDTH-1:0] rfu_exu_bus_o,
@@ -135,35 +140,69 @@ module ysyx_25030067_rfu (
     wire exu_valid;
     wire lsu_valid;
     wire wbu_valid;
+    wire rs1_hit_exu_alu;
+    wire rs1_hit_exu_gpr;
+    wire rs1_hit_lsu;
+    wire rs1_hit_wbu;
+    wire rs1_sel_exu_alu;
+    wire rs1_sel_exu_gpr;
+    wire rs1_sel_lsu;
+    wire rs1_sel_wbu;
+    wire rs1_sel_reg;
+    wire rs2_hit_exu_alu;
+    wire rs2_hit_exu_gpr;
+    wire rs2_hit_lsu;
+    wire rs2_hit_wbu;
+    wire rs2_sel_exu_alu;
+    wire rs2_sel_exu_gpr;
+    wire rs2_sel_lsu;
+    wire rs2_sel_wbu;
+    wire rs2_sel_reg;
     wire [ 4:0] exu_rd;
     wire [ 4:0] lsu_rd;
     wire [ 4:0] wbu_rd;
     wire [11:0] exu_csr_addr;
     wire [11:0] lsu_csr_addr;
     wire [11:0] wbu_csr_addr;
-    wire [31:0] exu_forward_data;
-    wire [31:0] lsu_forward_data;
-    wire [31:0] wbu_forward_data;
-    assign {exu_gpr_forword_valid, exu_valid, exu_stall, exu_rd, exu_csr_addr, exu_forward_data} =
-                exu_forward_bus;
-    assign {lsu_gpr_forward_valid, lsu_valid, lsu_stall, lsu_rd, lsu_csr_addr, lsu_forward_data} =
-                lsu_forward_bus;
-    assign {wbu_gpr_forward_valid, wbu_valid, wbu_stall, wbu_rd, wbu_csr_addr, wbu_forward_data} =
-                wbu_forward_bus;
-    assign rfu_rs1_value  = (exu_gpr_forword_valid && !exu_stall && exu_rd ==
-                              rfu_rs1_o) ?  exu_forward_data :
-                            (lsu_gpr_forward_valid && !lsu_stall && lsu_rd ==
-                              rfu_rs1_o) ?  lsu_forward_data :
-                            (wbu_gpr_forward_valid && !wbu_stall && wbu_rd ==
-                              rfu_rs1_o) ?  wbu_forward_data :
-                            rfu_rs1_value_i;
-    assign rfu_rs2_value  = (exu_gpr_forword_valid && !exu_stall && exu_rd ==
-                              rfu_rs2_o) ?  exu_forward_data :
-                            (lsu_gpr_forward_valid && !lsu_stall && lsu_rd ==
-                              rfu_rs2_o) ?  lsu_forward_data :
-                            (wbu_gpr_forward_valid && !wbu_stall && wbu_rd ==
-                              rfu_rs2_o) ?  wbu_forward_data :
-                            rfu_rs2_value_i;
+    assign {exu_gpr_forword_valid, exu_valid, exu_stall, exu_rd, exu_csr_addr} =
+                exu_forward_ctrl;
+    assign {lsu_gpr_forward_valid, lsu_valid, lsu_stall, lsu_rd, lsu_csr_addr} =
+                lsu_forward_ctrl;
+    assign {wbu_gpr_forward_valid, wbu_valid, wbu_stall, wbu_rd, wbu_csr_addr} =
+                wbu_forward_ctrl;
+    // rs1 forwarding hit signals
+    assign  rs1_hit_exu_alu = exu_alu_forward_valid && !exu_stall && (exu_rd == rfu_rs1_o);
+    assign  rs1_hit_exu_gpr = exu_gpr_forword_valid && !exu_stall && (exu_rd == rfu_rs1_o);
+    assign  rs1_hit_lsu     = lsu_gpr_forward_valid && !lsu_stall && (lsu_rd == rfu_rs1_o);
+    assign  rs1_hit_wbu     = wbu_gpr_forward_valid && !wbu_stall && (wbu_rd == rfu_rs1_o);
+    // one-hot select (priority: exu_alu > exu_gpr > lsu > wbu > regfile)
+    assign rs1_sel_exu_alu =  rs1_hit_exu_alu;
+    assign rs1_sel_exu_gpr = !rs1_hit_exu_alu &&  rs1_hit_exu_gpr;
+    assign rs1_sel_lsu     = !rs1_hit_exu_alu && !rs1_hit_exu_gpr &&  rs1_hit_lsu;
+    assign rs1_sel_wbu     = !rs1_hit_exu_alu && !rs1_hit_exu_gpr && !rs1_hit_lsu &&  rs1_hit_wbu;
+    assign rs1_sel_reg     = !rs1_hit_exu_alu && !rs1_hit_exu_gpr && !rs1_hit_lsu && !rs1_hit_wbu;
+    assign rfu_rs1_value = ({32{rs1_sel_exu_alu}} & exu_alu_forward_data) |
+                           ({32{rs1_sel_exu_gpr}} & exu_forward_data)     |
+                           ({32{rs1_sel_lsu}}     & lsu_forward_data)     |
+                           ({32{rs1_sel_wbu}}     & wbu_forward_data)     |
+                           ({32{rs1_sel_reg}}     & rfu_rs1_value_i);
+
+    // rs2 forwarding hit signals
+    assign  rs2_hit_exu_alu = exu_alu_forward_valid && !exu_stall && (exu_rd == rfu_rs2_o);
+    assign  rs2_hit_exu_gpr = exu_gpr_forword_valid && !exu_stall && (exu_rd == rfu_rs2_o);
+    assign  rs2_hit_lsu     = lsu_gpr_forward_valid && !lsu_stall && (lsu_rd == rfu_rs2_o);
+    assign  rs2_hit_wbu     = wbu_gpr_forward_valid && !wbu_stall && (wbu_rd == rfu_rs2_o);
+    // one-hot select (priority: exu_alu > exu_gpr > lsu > wbu > regfile)
+    assign  rs2_sel_exu_alu =  rs2_hit_exu_alu;
+    assign  rs2_sel_exu_gpr = !rs2_hit_exu_alu &&  rs2_hit_exu_gpr;
+    assign  rs2_sel_lsu     = !rs2_hit_exu_alu && !rs2_hit_exu_gpr &&  rs2_hit_lsu;
+    assign  rs2_sel_wbu     = !rs2_hit_exu_alu && !rs2_hit_exu_gpr && !rs2_hit_lsu &&  rs2_hit_wbu;
+    assign  rs2_sel_reg     = !rs2_hit_exu_alu && !rs2_hit_exu_gpr && !rs2_hit_lsu && !rs2_hit_wbu;
+    assign rfu_rs2_value = ({32{rs2_sel_exu_alu}} & exu_alu_forward_data) |
+                           ({32{rs2_sel_exu_gpr}} & exu_forward_data)     |
+                           ({32{rs2_sel_lsu}}     & lsu_forward_data)     |
+                           ({32{rs2_sel_wbu}}     & wbu_forward_data)     |
+                           ({32{rs2_sel_reg}}     & rfu_rs2_value_i);
     assign stall =  (exu_stall | lsu_stall | wbu_stall) || wait_cache_flush  ||
                     (exu_valid && (exu_csr_addr == rfu_csr_addr)) ||
                     (lsu_valid && (lsu_csr_addr == rfu_csr_addr)) ||

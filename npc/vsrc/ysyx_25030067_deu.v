@@ -440,10 +440,12 @@ module ysyx_25030067_deu (
           end
       end
     `endif
+  `ifndef SYNTH
     import "DPI-C" function void get_inst(input int inst);
     always @(posedge clock) begin
       if (icu_valid_i && deu_ready_o) begin
         get_inst(deu_inst);
       end
     end
+  `endif
 endmodule

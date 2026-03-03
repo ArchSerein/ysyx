@@ -22,7 +22,8 @@ module ysyx_25030067_lsu (
     input                               bvalid_i,
     output                              bready_o,
 
-    output [`FORWARD_BUS_WIDTH-1:0]     lsu_forward_bus,
+    output [`FORWARD_CTRL_BUS_WIDTH-1:0]     lsu_forward_ctrl,
+    output [`FORWARD_DATA_BUS_WIDTH-1:0]     lsu_forward_data,
 
     output [`LSU_WBU_BUS_WIDTH-1:0]     lsu_wbu_bus_o,
     output [ 8:0]                       lsu_excp_bus_o,
@@ -168,5 +169,6 @@ module ysyx_25030067_lsu (
 
     assign valid_o = condition && (~has_flush_sign);
     assign lsu_ready_o = !valid || (condition && wbu_ready_i);
-    assign lsu_forward_bus = { lsu_gpr_forward_valid, lsu_valid, stall, ms_rd, ms_csr_addr, final_result };
+    assign lsu_forward_ctrl = { lsu_gpr_forward_valid, lsu_valid, stall, ms_rd, ms_csr_addr };
+    assign lsu_forward_data = final_result;
 endmodule

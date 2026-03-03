@@ -98,9 +98,14 @@ module ysyx_25030067_core (
 
     wire [`RFU_EXU_BUS_WIDTH-1:0] rfu_exu_bus;
     wire rfu_valid;
-    wire [`FORWARD_BUS_WIDTH-1:0] exu_forward_bus;
-    wire [`FORWARD_BUS_WIDTH-1:0] lsu_forward_bus;
-    wire [`FORWARD_BUS_WIDTH-1:0] wbu_forward_bus;
+    wire exu_alu_forward_valid;
+    wire [`FORWARD_DATA_BUS_WIDTH-1:0] exu_alu_forward_data;
+    wire [`FORWARD_CTRL_BUS_WIDTH-1:0] exu_forward_ctrl;
+    wire [`FORWARD_DATA_BUS_WIDTH-1:0] exu_forward_data;
+    wire [`FORWARD_CTRL_BUS_WIDTH-1:0] lsu_forward_ctrl;
+    wire [`FORWARD_DATA_BUS_WIDTH-1:0] lsu_forward_data;
+    wire [`FORWARD_CTRL_BUS_WIDTH-1:0] wbu_forward_ctrl;
+    wire [`FORWARD_DATA_BUS_WIDTH-1:0] wbu_forward_data;
 
     wire [`EXU_LSU_BUS_WIDTH-1:0] exu_lsu_bus;
     wire exu_valid;
@@ -288,9 +293,14 @@ module ysyx_25030067_core (
         .rfu_exu_bus_o  (rfu_exu_bus),
         .rfu_excp_bus_o (rfu_excp_bus),
 
-        .exu_forward_bus(exu_forward_bus),
-        .lsu_forward_bus(lsu_forward_bus),
-        .wbu_forward_bus(wbu_forward_bus),
+        .exu_alu_forward_valid(exu_alu_forward_valid),
+        .exu_alu_forward_data(exu_alu_forward_data),
+        .exu_forward_ctrl(exu_forward_ctrl),
+        .exu_forward_data(exu_forward_data),
+        .lsu_forward_ctrl(lsu_forward_ctrl),
+        .lsu_forward_data(lsu_forward_data),
+        .wbu_forward_ctrl(wbu_forward_ctrl),
+        .wbu_forward_data(wbu_forward_data),
 
         .rfu_ready_o    (rfu_ready),
         .valid_o        (rfu_valid)
@@ -327,7 +337,10 @@ module ysyx_25030067_core (
         .branch_flush   (branch_flush),
         .branch_target  (branch_target),
 
-        .exu_forward_bus(exu_forward_bus),
+        .exu_alu_forward_valid(exu_alu_forward_valid),
+        .exu_alu_forward_data(exu_alu_forward_data),
+        .exu_forward_ctrl(exu_forward_ctrl),
+        .exu_forward_data(exu_forward_data),
 
         .exu_excp_bus_o (exu_excp_bus),
         .exu_lsu_bus_o  (exu_lsu_bus),
@@ -422,7 +435,8 @@ module ysyx_25030067_core (
         .bvalid_i       (lsu_bvalid),
         .bready_o       (lsu_bready),
 
-        .lsu_forward_bus(lsu_forward_bus),
+        .lsu_forward_ctrl(lsu_forward_ctrl),
+        .lsu_forward_data(lsu_forward_data),
 
         .lsu_excp_bus_o (lsu_excp_bus),
         .lsu_wbu_bus_o  (lsu_wbu_bus),
@@ -450,7 +464,8 @@ module ysyx_25030067_core (
         .csr_mcause_o   (csr_mcause_w),
         .csr_mepc_o     (csr_mepc_w),
 
-        .wbu_forward_bus(wbu_forward_bus),
+        .wbu_forward_ctrl(wbu_forward_ctrl),
+        .wbu_forward_data(wbu_forward_data),
 
         .wbu_ready_o    (wbu_ready)
     );
