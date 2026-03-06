@@ -63,7 +63,7 @@ INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/vsrc
 INCDIR += +incdir+/home/serein/ysyx/ysyx-workbench/npc/include/generated
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
-		@python3 $(NPC_HOME)/python_scripts/trans.py
+		@python3 $(NPC_HOME)/scripts_tools/trans.py
 		@rm -rf $(OBJ_DIR)
 		$(VERILATOR) $(VERILATOR_CFLAGS) \
 		$(INCDIR)	\
@@ -84,7 +84,8 @@ FILE_ID := $(shell expr $(shell ls -1 $(DATA_DIR) 2>/dev/null | wc -l) + 1)
 
 INFO ?=
 perf:
-	python3 python_scripts/data_processing.py
+	@python3 scripts_tools/data_processing.py
+	@bash scripts_tools/automated_evaluation.sh
 	@cp ./performance-data.txt ./performance/performance-data-$(FILE_ID).txt
 	@git add ./performance/*
 	@git commit -m"update performance-table: $(INFO)"
