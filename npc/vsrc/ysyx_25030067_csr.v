@@ -14,6 +14,8 @@
     // ifu
     output [`CSR_DATA_WIDTH-1:0]    csr_mtvec_o,
     output [`CSR_DATA_WIDTH-1:0]    csr_mepc_o,
+    output [`CSR_DATA_WIDTH-1:0]    csr_mstatus_o,
+    output [`CSR_DATA_WIDTH-1:0]    csr_satp_o,
 
     output [`CSR_DATA_WIDTH-1:0]    csr_rdata_o
  );
@@ -22,6 +24,7 @@
     reg     [`CSR_DATA_WIDTH-1:0]    MSTATUS;
     reg     [`CSR_DATA_WIDTH-1:0]    MTVEC;
     reg     [`CSR_DATA_WIDTH-1:0]    MEPC;
+    reg     [`CSR_DATA_WIDTH-1:0]    SATP;
     reg     [`CSR_DATA_WIDTH-1:0]    MVENDORID;
     reg     [`CSR_DATA_WIDTH-1:0]    MARCHID;
 
@@ -29,11 +32,13 @@
     wire                    csr_mstatus_we;
     wire                    csr_mtvec_we;
     wire                    csr_mepc_we;
+    wire                    csr_satp_we;
 
     assign csr_mcause_we = excp_flush;
     assign csr_mstatus_we = csr_we_i && (csr_waddr_i == `CSR_ADDR_MSTATUS);
     assign csr_mtvec_we = csr_we_i && (csr_waddr_i == `CSR_ADDR_MTVEC);
     assign csr_mepc_we = excp_flush || (csr_we_i && (csr_waddr_i == `CSR_ADDR_MEPC));
+    assign csr_satp_we = csr_we_i && (csr_waddr_i == `CSR_ADDR_SATP);
 
     always @(posedge clock) begin
         if (reset) begin
@@ -75,6 +80,15 @@
 
     always @(posedge clock) begin
         if (reset) begin
+            SATP <= 0;
+        end
+        else if (csr_satp_we) begin
+            SATP <= csr_wdata_i;
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
             MVENDORID <= 32'h78797379;
         end
     end
@@ -89,9 +103,12 @@
                          {32{csr_raddr_i == `CSR_ADDR_MSTATUS}} & MSTATUS |
                          {32{csr_raddr_i == `CSR_ADDR_MTVEC}} & MTVEC |
                          {32{csr_raddr_i == `CSR_ADDR_MEPC}} & MEPC |
+                         {32{csr_raddr_i == `CSR_ADDR_SATP}} & SATP |
                          {32{csr_raddr_i == `CSR_ADDR_MVENDORID}} & MVENDORID |
                          {32{csr_raddr_i == `CSR_ADDR_MARCHID}} & MARCHID;
     assign csr_mtvec_o = MTVEC;
     assign csr_mepc_o = MEPC;
+    assign csr_mstatus_o = MSTATUS;
+    assign csr_satp_o = SATP;
 
  endmodule
