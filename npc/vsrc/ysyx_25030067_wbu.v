@@ -64,7 +64,7 @@ module ysyx_25030067_wbu (
     always @(posedge clock) begin
         if (has_flush_sign) begin
             valid <= 1'b0;
-        end if (lsu_valid_i) begin
+        end else if (lsu_valid_i) begin
             valid <= 1'b1;
         end else begin
             valid <= 1'b0;
@@ -146,7 +146,7 @@ module ysyx_25030067_wbu (
     always @(*) begin
         if (lsu_excp_bus[3]) begin
             ending(1);
-          end else if (cnt >= 32'h20000) begin
+          end else if (cnt >= 32'h2000) begin
             ending(2);
           end
     end

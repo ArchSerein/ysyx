@@ -262,13 +262,19 @@ module ysyx_25030067_exu (
 
     wire   load_addr_misalign;
     wire   store_amo_addr_misalign;
+    wire   load_word_misalign;
+    wire   load_half_misalign;
+    wire   store_word_misalign;
+    wire   store_half_misalign;
 
-    assign load_addr_misalign      = ex_mem_re[3] ? (ex_alu_result[1] | ex_alu_result[0]) :
-                                     ex_mem_re[1] ? ex_alu_result[0] :
-                                     1'b0;
-    assign store_amo_addr_misalign = ex_mem_we[3] ? (ex_alu_result[1] | ex_alu_result[0]) :
-                                     ex_mem_we[1] ? ex_alu_result[0] :
-                                     1'b0;
+    assign load_word_misalign = ex_alu_result[1] | ex_alu_result[0];
+    assign load_half_misalign = ex_alu_result[0];
+    assign store_word_misalign = ex_alu_result[1] | ex_alu_result[0];
+    assign store_half_misalign = ex_alu_result[0];
+    assign load_addr_misalign = (ex_mem_re[3] & load_word_misalign) |
+                                ((~ex_mem_re[3]) & ex_mem_re[1] & load_half_misalign);
+    assign store_amo_addr_misalign = (ex_mem_we[3] & store_word_misalign) |
+                                     ((~ex_mem_we[3]) & ex_mem_we[1] & store_half_misalign);
 
     assign no_mem_req        = !(arvalid_o || awvalid_o || wvalid_o);
     assign no_mul_div        = ~EN_start_mul & ~EN_start_div;

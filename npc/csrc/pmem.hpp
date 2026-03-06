@@ -18,7 +18,7 @@ long init_mem(char *);
 void free();
 void flash_test();
 extern "C" int pmem_read(int);
-uint32_t vaddr_read(uint32_t, int);
+extern "C" uint32_t vaddr_read(uint32_t, int);
 
 uint8_t *guest_to_host(uint32_t paddr);
 uint8_t *mrom_to_host(uint32_t paddr);

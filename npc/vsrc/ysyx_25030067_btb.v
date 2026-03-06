@@ -48,7 +48,7 @@ module ysyx_25030067_btb (
   always @(posedge clock) begin
     if (reset) begin
       btb_valid <= {BTB_SET{1'b0}};
-    end if (update) begin
+    end else if (update) begin
       btb_valid[update_index] <= 1'b1;
     end
   end

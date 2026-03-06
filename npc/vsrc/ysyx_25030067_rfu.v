@@ -221,13 +221,15 @@ module ysyx_25030067_rfu (
     wire  [31:0]  rfu_src1_value;
     wire  [31:0]  rfu_src2_value;
     assign rfu_src1_value = rfu_src1_from_pre ? rfu_src1 : rfu_rs1_value;
-    assign rfu_src2_value = rfu_src2_is_imm ? rfu_imm :
-                            rfu_src2_is_csr ? rfu_csr_value_i :
-                            rfu_rs2_value;
+    wire  [31:0]  rfu_src2_value_pre;
+    wire  [31:0]  rfu_compare_result_ext;
+    wire  [31:0]  rfu_final_result_pre;
+    assign rfu_src2_value_pre = rfu_src2_is_csr ? rfu_csr_value_i : rfu_rs2_value;
+    assign rfu_src2_value = rfu_src2_is_imm ? rfu_imm : rfu_src2_value_pre;
     wire  [31:0]  rfu_final_result;
-    assign rfu_final_result = rfu_jmp_flag ? rfu_snpc :
-                              rfu_res_from_compare ? {31'b0, rfu_compare_result} :
-                              rfu_csr_value_i;
+    assign rfu_compare_result_ext = {31'b0, rfu_compare_result};
+    assign rfu_final_result_pre = rfu_res_from_compare ? rfu_compare_result_ext : rfu_csr_value_i;
+    assign rfu_final_result = rfu_jmp_flag ? rfu_snpc : rfu_final_result_pre;
 
     wire          rfu_res_from_pre;
     assign rfu_res_from_pre = rfu_jmp_flag | rfu_res_from_compare | rfu_res_from_csr;

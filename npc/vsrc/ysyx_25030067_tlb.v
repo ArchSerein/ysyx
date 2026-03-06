@@ -11,14 +11,12 @@ module ysyx_25030067_tlb #(
   parameter PPN_WIDTH   = 44,
   parameter ASID_WIDTH  = 16,
   parameter LEVEL_WIDTH = 2,
-  parameter PAGE_LEVELS = 3,
   parameter VPN_SLICE   = 9
 `else
   parameter VPN_WIDTH   = 20,
   parameter PPN_WIDTH   = 22,
   parameter ASID_WIDTH  = 9,
   parameter LEVEL_WIDTH = 1,
-  parameter PAGE_LEVELS = 2,
   parameter VPN_SLICE   = 10
 `endif
 )(
@@ -55,8 +53,6 @@ module ysyx_25030067_tlb #(
   localparam PERM_WIDTH    = 7;
   // Permission bit indices: {D, A, G, U, X, W, R}
   localparam PERM_G        = 4;
-  localparam LAST_LEVEL    = PAGE_LEVELS - 1;
-
   reg                      entry_valid [0:ENTRIES-1];
   reg  [VPN_WIDTH-1:0]     entry_vpn   [0:ENTRIES-1];
   reg  [PPN_WIDTH-1:0]     entry_ppn   [0:ENTRIES-1];
@@ -70,9 +66,6 @@ module ysyx_25030067_tlb #(
   wire [ENTRIES-1:0]        entry_hit;
   wire [ENTRIES_WIDTH-1:0]  hit_idx;
   wire [PPN_WIDTH-1:0]      composed_ppn [0:ENTRIES-1];
-  wire                      _unused_ok;
-
-  assign _unused_ok = &{1'b0, LAST_LEVEL[0]};
 
   ysyx_25030067_one_hot_to_binary #(
     .ASSOC(ENTRIES),
