@@ -89,16 +89,29 @@ module ysyx_25030067_wbu (
                         // lsu_excp_bus[9] || lsu_excp_bus[11] || lsu_excp_bus[12] ||
                         // lsu_excp_bus[13] || lsu_excp_bus[15];
     assign csr_mepc_o = wbu_pc;
-    assign csr_mcause_o = lsu_excp_bus[0] ? `INST_ADDR_MISALIGNED :
-                          lsu_excp_bus[1] ? `INST_ACCESS_FAULT :
-                          lsu_excp_bus[2] ? `ILLEGAL_INST :
-                          lsu_excp_bus[3] ? `BREAKPOINT :
-                          lsu_excp_bus[4] ? `LOAD_ADDR_MISALIGNED :
-                          lsu_excp_bus[5] ? `LOAD_ACCESS_FAULT :
-                          lsu_excp_bus[6] ? `STORE_AMO_ADDR_MISALIGNED :
-                          lsu_excp_bus[7] ? `STORE_AMO_ACCESS_FAULT :
-                          lsu_excp_bus[8] ? `ECALL_FROM_M_MODE :
-                          32'h0;
+    wire [8:0] excp_priority;
+    // Priority encoder: bit 0 highest priority, only one can be active
+    assign excp_priority[0] = lsu_excp_bus[0];
+    assign excp_priority[1] = lsu_excp_bus[1] & ~lsu_excp_bus[0];
+    assign excp_priority[2] = lsu_excp_bus[2] & ~(|lsu_excp_bus[1:0]);
+    assign excp_priority[3] = lsu_excp_bus[3] & ~(|lsu_excp_bus[2:0]);
+    assign excp_priority[4] = lsu_excp_bus[4] & ~(|lsu_excp_bus[3:0]);
+    assign excp_priority[5] = lsu_excp_bus[5] & ~(|lsu_excp_bus[4:0]);
+    assign excp_priority[6] = lsu_excp_bus[6] & ~(|lsu_excp_bus[5:0]);
+    assign excp_priority[7] = lsu_excp_bus[7] & ~(|lsu_excp_bus[6:0]);
+    assign excp_priority[8] = lsu_excp_bus[8] & ~(|lsu_excp_bus[7:0]);
+
+    wire [3:0] csr_mcause_code;
+    assign csr_mcause_code = ({4{excp_priority[0]}} & `INST_ADDR_MISALIGNED) |
+                             ({4{excp_priority[1]}} & `INST_ACCESS_FAULT) |
+                             ({4{excp_priority[2]}} & `ILLEGAL_INST) |
+                             ({4{excp_priority[3]}} & `BREAKPOINT) |
+                             ({4{excp_priority[4]}} & `LOAD_ADDR_MISALIGNED) |
+                             ({4{excp_priority[5]}} & `LOAD_ACCESS_FAULT) |
+                             ({4{excp_priority[6]}} & `STORE_AMO_ADDR_MISALIGNED) |
+                             ({4{excp_priority[7]}} & `STORE_AMO_ACCESS_FAULT) |
+                             ({4{excp_priority[8]}} & `ECALL_FROM_M_MODE);
+    assign csr_mcause_o = {28'b0, csr_mcause_code};
                           // lsu_excp_bus[8] ? `ECALL_FROM_U_MODE :
                           // lsu_excp_bus[9] ? `ECALL_FROM_S_MODE :
                           // lsu_excp_bus[12] ? `INST_PAGE_FAULT :

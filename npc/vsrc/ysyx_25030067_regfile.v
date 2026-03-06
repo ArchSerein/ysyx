@@ -12,22 +12,23 @@ module ysyx_25030067_regfile (
 
     // Internal signals
     // 通用寄存器
-    reg [31:0] regfile [31:0];
+    reg [31:0] regfile [1:31];
 
     // write
     // 在 write back 阶段写入
+    wire wr_en;
+    assign wr_en = reg_wen_i && (reg_dst_i != 5'b0);
     always @(posedge clock)
     begin
-      if (reg_wen_i) begin
-          regfile[reg_dst_i] <= reg_wdata_i;
+      if (wr_en) begin
+        regfile[reg_dst_i] <= reg_wdata_i;
       end
-
-      // x0 always be zero
-      regfile[0] <= 32'b0;
     end
 
     // read
-    assign reg_rdata1_o = regfile[reg_src1_i];
-    assign reg_rdata2_o = regfile[reg_src2_i];
+    assign reg_rdata1_o = (reg_src1_i == 5'b0) ?
+                          32'b0 : regfile[reg_src1_i];
+    assign reg_rdata2_o = (reg_src2_i == 5'b0) ?
+                          32'b0 : regfile[reg_src2_i];
 
 endmodule

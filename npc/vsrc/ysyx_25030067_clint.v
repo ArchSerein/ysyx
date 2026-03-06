@@ -18,24 +18,34 @@ module ysyx_25030067_clint (
     always @(posedge clock) begin
         if (reset) begin
             mtime_h <= 0;
-            mtime_l <= 0;
-        end else begin
-          if (mtime_l == 32'hffffffff) begin
+        end else if (mtime_l == 32'hffffffff) begin
             mtime_h <= mtime_h + 1;
-          end
-          mtime_l <= mtime_l + 1;
         end
     end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            mtime_l <= 0;
+        end else begin
+            mtime_l <= mtime_l + 1;
+        end
+    end
+
     always @(posedge clock) begin
       if (arvalid_i && !valid) begin
-        valid <= 1;
-        raddr <= araddr_i;
+        valid <= 1'b1;
       end else if (rready_i) begin
-        valid <= 0;
+        valid <= 1'b0;
       end
     end
 
-    assign rdata_o     = raddr[3:0] == 4'hc ? mtime_h : mtime_l; 
+    always @(posedge clock) begin
+      if (arvalid_i && !valid) begin
+        raddr <= araddr_i;
+      end
+    end
+
+    assign rdata_o     = (raddr[3:0] == 4'hc) ? mtime_h :  mtime_l;
     assign arready_o   = !valid;
     assign rvalid_o    = valid;
 endmodule

@@ -248,7 +248,8 @@ uint32_t get_inst_reg() {
 }
 
 uint32_t get_reg_val(int index) {
-    return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_regfile_module__DOT__regfile[index];
+  if (index == 0) return 0;
+  else return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_regfile_module__DOT__regfile[index-1];
 }
 
 uint32_t get_csr_val(int addr) {

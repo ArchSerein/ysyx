@@ -95,10 +95,15 @@ module ysyx_25030067_div (
 
   assign partial_rem_add = ~partial_rem[`DATA_WIDTH] ? { 1'b1, div_neg } : { 1'b0, div_pos };
 
+  wire [`DATA_WIDTH:0] next_partial_rem_fix;
+  wire [`DATA_WIDTH:0] next_partial_rem_step;
+  wire [`DATA_WIDTH:0] next_partial_rem_hold;
+  assign next_partial_rem_fix = partial_rem[`DATA_WIDTH] ? (partial_rem + {1'b0, div_pos}) :
+                                                            partial_rem;
+  assign next_partial_rem_step = partial_rem_val + partial_rem_add;
+  assign next_partial_rem_hold = is_last_fix ? next_partial_rem_fix : next_partial_rem_step;
   assign next_partial_rem=  (EN_start && counter == 6'b0) ? 'b0 :
-                            is_last_fix ? (partial_rem[`DATA_WIDTH] ? partial_rem + {1'b0, div_pos} :
-                                                                      partial_rem) :
-                            (partial_rem_val + partial_rem_add);
+                            next_partial_rem_hold;
 
   assign quotient_val    = { quotient[`DATA_WIDTH-2:0], 1'b0 };
 
