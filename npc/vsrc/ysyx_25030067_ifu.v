@@ -35,11 +35,21 @@ module ysyx_25030067_ifu (
     wire [31:0] snpc;
     wire [31:0] dnpc;
     assign snpc = ifu_pc + 32'h4;
-    assign dnpc =   excp_flush ? csr_mtvec :
-                    mret_flush ? csr_mepc :
-                    branch_flush ? branch_target :
-                    cache_flush ? cache_flush_target  :
-                    ((predict_taken_i && btb_valid_i) ? predict_pc_i : snpc);
+    wire sel_excp    = excp_flush;
+    wire sel_mret    = mret_flush    & ~excp_flush;
+    wire sel_branch  = branch_flush  & ~(excp_flush | mret_flush);
+    wire sel_cache   = cache_flush   & ~(excp_flush | mret_flush | branch_flush);
+    wire sel_predict = (predict_taken_i & btb_valid_i)
+                     & ~(excp_flush | mret_flush | branch_flush | cache_flush);
+    wire sel_snpc    = ~(excp_flush | mret_flush | branch_flush | cache_flush
+                       | (predict_taken_i & btb_valid_i));
+
+    assign dnpc = ({32{sel_excp}}    & csr_mtvec)
+                | ({32{sel_mret}}    & csr_mepc)
+                | ({32{sel_branch}}  & branch_target)
+                | ({32{sel_cache}}   & cache_flush_target)
+                | ({32{sel_predict}} & predict_pc_i)
+                | ({32{sel_snpc}}    & snpc);
 
     wire [31:0] next_pc;
     assign next_pc = (reset) ? YSYXSOC_RESET_PC : dnpc;
