@@ -68,12 +68,14 @@ module ysyx_25030067_iwrapper (
   reg  [1:0]                    state;
   reg  [31:0]                   miss_vaddr;
   reg  [33:0]                   miss_paddr;
+  reg  [8:0]                    miss_asid;
   reg                           miss_uncache;
   reg  [BLOCKS_WIDTH-1:0]       fill_ptr;
   reg                           uncache_resp_valid;
   reg                           fault_resp_valid;
   reg  [31:0]                   uncache_rdata;
   reg                           uncache_fault;
+  reg                           icache_flush_pending;
 
   wire [31:0]                   req_vaddr;
   wire [31:0]                   req_snpc;
@@ -103,6 +105,7 @@ module ysyx_25030067_iwrapper (
   wire                          waittlb_cache_miss;
   wire                          fill_data_valid;
   wire                          fill_done;
+  wire                          read_data_fire;
   wire [1:0]                    ready_next_state;
   wire [1:0]                    waittlb_next_state;
   wire [1:0]                    sendfillreq_next_state;
@@ -119,9 +122,13 @@ module ysyx_25030067_iwrapper (
   wire                          tlb_priv_ok;
   wire                          tlb_type_ok;
   wire                          lookup_hit_ready;
-  wire                          _unused_ok;
-  wire [31:0]                   cache_vaddr_unused;
-  wire [31:0]                   cache_snpc_unused;
+  wire [31:0]                   cache_vaddr;
+  wire [TAG_WIDTH-1:0]          cache_ptag;
+  wire                          start_tlb_walk;
+  wire                          set_valid;
+  wire                          keep_valid;
+  wire                          pipeline_flush_block;
+  wire                          icache_flush_block;
 
   assign {req_vaddr, req_snpc} = ifu_icu_bus;
   assign satp_asid = satp_i[30:22];
@@ -138,7 +145,8 @@ module ysyx_25030067_iwrapper (
   assign lookup_ptag = lookup_paddr[`DATA_WIDTH-1:`CONFIG_ICACHE_BLOCKS_WIDTH+`CONFIG_ICACHE_SETS_WIDTH+2];
   assign ptw_ptag = ptw_paddr[`DATA_WIDTH-1:`CONFIG_ICACHE_BLOCKS_WIDTH+`CONFIG_ICACHE_SETS_WIDTH+2];
   assign tlb_lookup_valid = valid && (state == READY) && vm_en;
-  assign tlb_write_valid = i_ptw_resp_valid_i && !i_ptw_page_fault_i && !i_ptw_access_fault_i;
+  assign tlb_write_valid = (state == WAITTLB) && valid && !has_flush_sign &&
+                           i_ptw_resp_valid_i && !i_ptw_page_fault_i && !i_ptw_access_fault_i;
 
   ysyx_25030067_tlb u_itlb (
     .clock              (clock),
@@ -151,7 +159,7 @@ module ysyx_25030067_iwrapper (
     .lookup_perm_o      (tlb_perm),
     .write_valid_i      (tlb_write_valid),
     .write_vpn_i        (miss_vaddr[31:12]),
-    .write_asid_i       (satp_asid),
+    .write_asid_i       (miss_asid),
     .write_ppn_i        (i_ptw_resp_ppn_i),
     .write_perm_i       (i_ptw_resp_perm_i),
     .write_page_level_i (i_ptw_resp_level_i),
@@ -175,46 +183,59 @@ module ysyx_25030067_iwrapper (
   assign tlb_miss = vm_en && !tlb_hit;
   assign curr_fault = (vm_en && tlb_hit && !tlb_perm_ok);
 
-  assign cache_lookup_valid = valid &&
+  assign icache_flush_block = icache_flush || icache_flush_pending;
+
+  assign cache_lookup_valid = valid && !icache_flush_block &&
                               ((state == READY && (!vm_en || tlb_hit)) ||
                                (state == WAITTLB && waittlb_resp_ok));
+
+  assign cache_vaddr = lookup_use_ptw ? miss_vaddr : req_vaddr;
+  assign cache_ptag = lookup_use_ptw ? ptw_ptag : lookup_ptag;
 
   ysyx_25030067_icache u_icache (
     .clock          (clock),
     .reset          (reset),
     .lookup_valid_i (cache_lookup_valid),
-    .vaddr_i        (lookup_use_ptw ? miss_vaddr : req_vaddr),
-    .ptag_i         (lookup_use_ptw ? ptw_ptag : lookup_ptag),
+    .vaddr_i        (cache_vaddr),
+    .ptag_i         (cache_ptag),
     .fill_valid_i   (fill_data_valid),
     .fill_data_i    (rdata_i),
     .fill_last_i    (rlast_i),
     .invalidate_i   (icache_flush),
+    .flush_pending_i (icache_flush_pending),
     .hit_o          (cache_hit),
-    .rdata_o        (cache_rdata),
-    .vaddr_o        (cache_vaddr_unused),
-    .snpc_o         (cache_snpc_unused)
+    .rdata_o        (cache_rdata)
   );
 
   assign has_flush_sign = reset || excp_flush || mret_flush || branch_flush;
+  assign pipeline_flush_block = has_flush_sign || icache_flush_block;
   assign issue_miss = valid && (state == READY) && !curr_fault &&
+                      !icache_flush_block &&
+                      !uncache_resp_valid && !fault_resp_valid &&
                       ((!vm_en && !cache_hit) || (vm_en && tlb_hit && !cache_hit));
 
   assign waittlb_resp_ok = i_ptw_resp_valid_i && !i_ptw_page_fault_i && !i_ptw_access_fault_i;
   assign waittlb_cache_miss = waittlb_resp_ok && !cache_hit;
-  assign fill_data_valid = (state == WAITFILLRESP) && rvalid_i && !miss_uncache &&
-                           !rresp_i[1] && !has_flush_sign;
-  assign fill_done = (state == WAITFILLRESP) && rvalid_i && rlast_i;
+  assign read_data_fire = rvalid_i && rready_o;
+  assign fill_data_valid = read_data_fire && !miss_uncache && !rresp_i[1];
+  assign fill_done = read_data_fire && rlast_i;
+  assign start_tlb_walk = valid && (state == READY) && tlb_miss &&
+                          !icache_flush_block &&
+                          !uncache_resp_valid && !fault_resp_valid;
 
   wire [1:0] ready_next_state_no_tlb;
   wire [1:0] waittlb_next_state_resp;
   assign ready_next_state_no_tlb = issue_miss ? SENDFILLREQ : READY;
-  assign ready_next_state = tlb_miss ? WAITTLB :
+  assign ready_next_state = icache_flush_block ? READY :
+                            tlb_miss ? WAITTLB :
                             ready_next_state_no_tlb;
   assign waittlb_next_state_resp = waittlb_cache_miss ? SENDFILLREQ : READY;
   assign waittlb_next_state = i_ptw_resp_valid_i ?
                               waittlb_next_state_resp :
                               WAITTLB;
-  assign sendfillreq_next_state = arready_i ? WAITFILLRESP : SENDFILLREQ;
+  assign sendfillreq_next_state = arready_i ?
+                                  (fill_done ? READY : WAITFILLRESP) :
+                                  SENDFILLREQ;
   assign waitfillresp_next_state = fill_done ? READY : WAITFILLRESP;
   assign state_next = ({2{state == READY}} & ready_next_state) |
                       ({2{state == WAITTLB}} & waittlb_next_state) |
@@ -225,15 +246,16 @@ module ysyx_25030067_iwrapper (
                             ((!vm_en && cache_hit) || (vm_en && tlb_hit && cache_hit));
   assign fetch_fault = fault_resp_valid || curr_fault || uncache_fault;
   assign resp_valid = lookup_hit_ready || uncache_resp_valid || fault_resp_valid || curr_fault;
-  assign valid_o = resp_valid && valid && !has_flush_sign;
-  assign ready_o = (!valid || (valid_o && deu_ready_i)) && (state == READY);
+  assign valid_o = resp_valid && valid && !pipeline_flush_block;
+  assign ready_o = (!pipeline_flush_block) &&
+                   (!valid || (valid_o && deu_ready_i)) && (state == READY);
   assign consume_resp = valid_o && deu_ready_i;
 
-  assign valid_next = ({1{!has_flush_sign && ifu_valid_i && ready_o}} & 1'b1) |
-                      ({1{!has_flush_sign && !(ifu_valid_i && ready_o) && valid && !consume_resp}} & 1'b1);
+  assign set_valid = !pipeline_flush_block && ifu_valid_i && ready_o;
+  assign keep_valid = !pipeline_flush_block && valid && !consume_resp && !set_valid;
+  assign valid_next = set_valid || keep_valid;
 
-  assign inst_data = ({32{uncache_resp_valid}} & uncache_rdata) |
-                     ({32{!uncache_resp_valid}} & cache_rdata);
+  assign inst_data = uncache_resp_valid ? uncache_rdata : cache_rdata;
   assign icu_deu_bus_o = {req_vaddr, req_snpc, inst_data};
   assign icu_excp_bus_o = {fetch_fault, ifu_excp_bus};
 
@@ -241,29 +263,14 @@ module ysyx_25030067_iwrapper (
   assign i_ptw_req_vaddr_o = miss_vaddr;
 
   assign arvalid_o = (state == SENDFILLREQ);
-  assign araddr_o = ({32{miss_uncache}} & miss_paddr[31:0]) |
-                    ({32{!miss_uncache}} &
+  assign araddr_o = miss_uncache ? miss_paddr[31:0] :
                      {miss_paddr[31:`CONFIG_ICACHE_BLOCKS_WIDTH+2],
-                      {`CONFIG_ICACHE_BLOCKS_WIDTH+2{1'b0}}});
-  assign arlen_o = ({8{miss_uncache}} & 8'b0) |
-                   ({8{!miss_uncache}} & 8'(LINE_LAST));
+                      {`CONFIG_ICACHE_BLOCKS_WIDTH+2{1'b0}}};
+  assign arlen_o = miss_uncache ? 8'b0 : 8'(LINE_LAST);
   assign arsize_o = 3'b010;
   assign arburst_o = `INCR;
-  assign rready_o = (state == WAITFILLRESP);
-
-  assign _unused_ok = &{
-    1'b0,
-    satp_i[21:0],
-    mstatus_i,
-    rresp_i[0],
-    miss_paddr[33:32],
-    tlb_perm[6],
-    tlb_perm[4],
-    tlb_perm[1:0],
-    i_ptw_req_ready_i,
-    cache_vaddr_unused,
-    cache_snpc_unused
-  };
+  assign rready_o = (state == WAITFILLRESP) ||
+                    ((state == SENDFILLREQ) && arready_i);
 
   always @(posedge clock) begin
     if (ifu_valid_i && ready_o) begin
@@ -278,7 +285,7 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (pipeline_flush_block) begin
       valid <= 1'b0;
     end else begin
       valid <= valid_next;
@@ -286,7 +293,7 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (reset) begin
       state <= READY;
     end else begin
       state <= state_next;
@@ -294,15 +301,23 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (reset) begin
       miss_vaddr <= 32'b0;
-    end else if (issue_miss) begin
+    end else if (issue_miss || start_tlb_walk) begin
       miss_vaddr <= req_vaddr;
     end
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (reset) begin
+      miss_asid <= 9'b0;
+    end else if (start_tlb_walk) begin
+      miss_asid <= satp_asid;
+    end
+  end
+
+  always @(posedge clock) begin
+    if (reset) begin
       miss_paddr <= 34'b0;
     end else if (issue_miss) begin
       miss_paddr <= lookup_paddr;
@@ -312,7 +327,7 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (reset) begin
       miss_uncache <= 1'b0;
     end else if (issue_miss) begin
       miss_uncache <= (lookup_paddr[31:16] == 16'h0f00);
@@ -322,7 +337,7 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (pipeline_flush_block) begin
       fill_ptr <= {BLOCKS_WIDTH{1'b0}};
     end else if (state == SENDFILLREQ && arready_i) begin
       fill_ptr <= {BLOCKS_WIDTH{1'b0}};
@@ -332,11 +347,11 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (pipeline_flush_block) begin
       uncache_resp_valid <= 1'b0;
     end else if (consume_resp) begin
       uncache_resp_valid <= 1'b0;
-    end else if (fill_done && miss_uncache && !rresp_i[1]) begin
+    end else if (fill_done && miss_uncache && !rresp_i[1] && valid) begin
       uncache_resp_valid <= 1'b1;
     end
   end
@@ -348,28 +363,42 @@ module ysyx_25030067_iwrapper (
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (pipeline_flush_block) begin
       uncache_fault <= 1'b0;
     end else if (consume_resp) begin
       uncache_fault <= 1'b0;
-    end else if (fill_done && miss_uncache) begin
+    end else if (fill_done && miss_uncache && valid) begin
       uncache_fault <= rresp_i[1];
     end
   end
 
   always @(posedge clock) begin
-    if (has_flush_sign) begin
+    if (pipeline_flush_block) begin
       fault_resp_valid <= 1'b0;
     end else if (consume_resp) begin
       fault_resp_valid <= 1'b0;
     end else if ((state == WAITTLB) && i_ptw_resp_valid_i &&
                  (i_ptw_page_fault_i || i_ptw_access_fault_i)) begin
       fault_resp_valid <= 1'b1;
-    end else if (fill_done && !miss_uncache && rresp_i[1]) begin
-      fault_resp_valid <= 1'b1;
     end
   end
 
-  assign wait_cache_flush = 1'b0;
+  always @(posedge clock) begin
+    if (read_data_fire && rresp_i[1]) begin
+      $stop;
+    end
+  end
+
+  always @(posedge clock) begin
+    if (reset) begin
+      icache_flush_pending <= 1'b0;
+    end else if (icache_flush && (state != READY)) begin
+      icache_flush_pending <= 1'b1;
+    end else if (icache_flush_pending && (state == READY)) begin
+      icache_flush_pending <= 1'b0;
+    end
+  end
+
+  assign wait_cache_flush = icache_flush_block;
 
 endmodule

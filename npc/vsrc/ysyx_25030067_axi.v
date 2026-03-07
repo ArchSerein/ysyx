@@ -86,6 +86,19 @@ module ysyx_25030067_axi (
     wire      [31:0]          icache_rdata;
     wire      [ 1:0]          icache_rresp;
 
+    wire                      ptw_arvalid;
+    wire      [31:0]          ptw_araddr;
+    wire                      ptw_arready;
+    wire      [ 2:0]          ptw_arsize;
+    wire      [ 1:0]          ptw_arburst;
+    wire      [ 7:0]          ptw_arlen;
+
+    wire                      ptw_rlast;
+    wire                      ptw_rready;
+    wire                      ptw_rvalid;
+    wire      [31:0]          ptw_rdata;
+    wire      [ 1:0]          ptw_rresp;
+
     wire                      dcache_arready;
     wire      [ 7:0]          dcache_arlen;
     wire      [ 2:0]          dcache_arsize;
@@ -132,6 +145,19 @@ module ysyx_25030067_axi (
         .icache_rvalid              (icache_rvalid),
         .icache_rdata               (icache_rdata),
         .icache_rresp               (icache_rresp),
+
+        .ptw_arvalid                (ptw_arvalid),
+        .ptw_araddr                 (ptw_araddr),
+        .ptw_arready                (ptw_arready),
+        .ptw_arsize                 (ptw_arsize),
+        .ptw_arburst                (ptw_arburst),
+        .ptw_arlen                  (ptw_arlen),
+
+        .ptw_rlast                  (ptw_rlast),
+        .ptw_rready                 (ptw_rready),
+        .ptw_rvalid                 (ptw_rvalid),
+        .ptw_rdata                  (ptw_rdata),
+        .ptw_rresp                  (ptw_rresp),
 
         .dcache_arready             (dcache_arready),
         .dcache_arlen               (dcache_arlen),
@@ -184,18 +210,18 @@ module ysyx_25030067_axi (
         .rdata_o          (clint_rdata)
     );
 
-    reg   [ 1:0]        grant;
-    wire  [ 1:0]        rreq;
-    wire  [ 1:0]        grant_q;
+    reg   [ 2:0]        grant;
+    wire  [ 2:0]        rreq;
+    wire  [ 2:0]        grant_q;
     ysyx_25030067_arbiter #(
-      .MASTER(2)
+      .MASTER(3)
     ) ysyx_25030067_arbiter_module (
       .clock          (clock),
       .reset          (reset),
       .rreq_i         (rreq),
       .grant_o        (grant_q)
     );
-    assign rreq = {icache_arvalid, dcache_arvalid};
+    assign rreq = {ptw_arvalid, icache_arvalid, dcache_arvalid};
     reg   idle;
     reg   read_busy;
     reg   write_busy;
@@ -221,8 +247,9 @@ module ysyx_25030067_axi (
       end
     end
     assign release_arbiter = reset || (io_master_rvalid && io_master_rready && io_master_rlast) || (clint_select && clint_rvalid && dcache_rready);
-    assign acquire_arbiter =  grant[1] && icache_arvalid && icache_arready ||
-                              (grant[0] || is_clint) && dcache_arvalid && dcache_arready;
+    assign acquire_arbiter =  (grant[2] && ptw_arvalid && ptw_arready) ||
+                              (grant[1] && icache_arvalid && icache_arready) ||
+                              ((grant[0] || is_clint) && dcache_arvalid && dcache_arready);
 
     always @(posedge clock) begin
       if (is_clint) begin
@@ -261,15 +288,32 @@ module ysyx_25030067_axi (
     assign dcache_bvalid = io_master_bvalid;
     assign dcache_bresp = io_master_bresp;
 
-    assign io_master_arvalid = (grant[1] && icache_arvalid && !read_busy) ||
+    assign io_master_arvalid = (grant[2] && ptw_arvalid && !read_busy) ||
+                               (grant[1] && icache_arvalid && !read_busy) ||
                                (dcache_arvalid && !is_clint && grant[0] && !read_busy);
-    assign io_master_araddr = ({32{grant[1]}} & icache_araddr) | ({32{grant[0]}} & dcache_araddr);
+    assign io_master_araddr = ({32{grant[2]}} & ptw_araddr) |
+                              ({32{grant[1]}} & icache_araddr) |
+                              ({32{grant[0]}} & dcache_araddr);
     assign io_master_arid = 4'b0000;
-    assign io_master_arlen = grant[1] ? icache_arlen : dcache_arlen;
-    assign io_master_arsize = ({3{grant[1]}} & icache_arsize) | ({3{grant[0]}} & dcache_arsize);
-    assign io_master_arburst = grant[1] ? icache_arburst : dcache_arburst;
+    assign io_master_arlen = ({8{grant[2]}} & ptw_arlen) |
+                             ({8{grant[1]}} & icache_arlen) |
+                             ({8{grant[0]}} & dcache_arlen);
+    assign io_master_arsize = ({3{grant[2]}} & ptw_arsize) |
+                              ({3{grant[1]}} & icache_arsize) |
+                              ({3{grant[0]}} & dcache_arsize);
+    assign io_master_arburst = ({2{grant[2]}} & ptw_arburst) |
+                               ({2{grant[1]}} & icache_arburst) |
+                               ({2{grant[0]}} & dcache_arburst);
 
-    assign io_master_rready = (grant[1] && icache_rready) | (grant[0] && dcache_rready);
+    assign io_master_rready = (grant[2] && ptw_rready) |
+                              (grant[1] && icache_rready) |
+                              (grant[0] && dcache_rready);
+
+    assign ptw_arready = io_master_arready && grant[2] && !read_busy;
+    assign ptw_rvalid = io_master_rvalid & grant[2];
+    assign ptw_rdata = io_master_rdata;
+    assign ptw_rresp = io_master_rresp;
+    assign ptw_rlast = io_master_rlast & grant[2];
 
     assign icache_arready = io_master_arready && grant[1] && !read_busy;
     assign icache_rvalid = io_master_rvalid & grant[1];
@@ -305,4 +349,24 @@ module ysyx_25030067_axi (
     assign io_slave_rlast = 1'b0;
     assign io_slave_rid = 4'b0000;
 
+    `ifdef CONFIG_RTL_MTRACE
+    always @(posedge clock) begin
+      `ifdef CONFIG_WRITE
+      if (dcache_awvalid && dcache_awready) begin
+        $display("write addr: %h", dcache_awaddr);
+      end
+      if (dcache_wvalid && dcache_wready) begin
+        $display("write data: %h", dcache_wdata);
+      end
+      `endif
+      `ifdef CONFIG_READ
+      if (dcache_arvalid && dcache_arready) begin
+        $display("read addr: %h", dcache_araddr);
+      end
+      if (dcache_rvalid && dcache_rready) begin
+        $display("read data: %h", dcache_rdata);
+      end
+      `endif
+    end
+    `endif
 endmodule

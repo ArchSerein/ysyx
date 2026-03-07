@@ -136,6 +136,7 @@ module ysyx_25030067_dwrapper (
   reg                          fault_resp_valid;
   reg                          fault_is_write;
   reg  [1:0]                   fault_resp_code;
+  reg                          dcache_flush_pending;
 
   wire                         request_read_fire;
   wire                         request_write_fire;
@@ -223,7 +224,8 @@ module ysyx_25030067_dwrapper (
   wire [2:0]                   flush_state_next;
   wire                         hit_read_resp;
   wire                         hit_write_resp;
-  wire                         _unused_ok;
+  wire                         dcache_flush_req;
+  wire                         dcache_flush_start;
 
   assign request_read_fire = exu_arvalid_i && dcache_arready_o;
   assign request_write_fire = exu_awvalid_i && dcache_awready_o &&
@@ -231,9 +233,11 @@ module ysyx_25030067_dwrapper (
   assign consume_resp = (dcache_rvalid_o && lsu_rready_i) ||
                         (dcache_bvalid_o && lsu_bready_i);
   assign hold_valid = valid && !consume_resp;
-  assign valid_next = ({1{request_read_fire || request_write_fire}} & 1'b1) |
-                      ({1{!(request_read_fire || request_write_fire) && hold_valid}} & 1'b1);
+  assign valid_next = (request_read_fire | request_write_fire) |
+                      (~(request_read_fire | request_write_fire) & hold_valid);
   assign has_flush_sign = reset;
+  assign dcache_flush_req = dcache_flush || dcache_flush_pending;
+  assign dcache_flush_start = (state == READY) && !valid && dcache_flush_req;
 
   assign satp_asid = satp_i[30:22];
   assign mstatus_mxr = mstatus_i[19];
@@ -351,12 +355,12 @@ module ysyx_25030067_dwrapper (
   wire [2:0] f_sendreq_next_state_partial;
   assign ready_next_state_cache_miss = cache_line_dirty ? WRITEBACK : SENDFILLREQ;
   assign ready_next_state_uncache = req_is_write ? WRITEBACK : SENDFILLREQ;
-  assign ready_next_state_cache = (valid && !curr_fault && !tlb_miss && !lookup_uncache && !cache_hit) ? ready_next_state_cache_miss :
+  assign ready_next_state_cache = (valid && !consume_resp && !curr_fault && !tlb_miss && !lookup_uncache && !cache_hit) ? ready_next_state_cache_miss :
                                   READY;
-  assign ready_next_state_no_tlb = (valid && !curr_fault && !tlb_miss && lookup_uncache) ? ready_next_state_uncache :
+  assign ready_next_state_no_tlb = (valid && !consume_resp && !curr_fault && !tlb_miss && lookup_uncache) ? ready_next_state_uncache :
                                    ready_next_state_cache;
-  assign ready_next_state_no_flush = (valid && tlb_miss) ? WAITTLB : ready_next_state_no_tlb;
-  assign ready_next_state = (!valid && dcache_flush) ? WAITFLUSH :
+  assign ready_next_state_no_flush = (valid && !consume_resp && tlb_miss) ? WAITTLB : ready_next_state_no_tlb;
+  assign ready_next_state = dcache_flush_start ? WAITFLUSH :
                             ready_next_state_no_flush;
   assign waittlb_next_state_cache_miss = cache_line_dirty ? WRITEBACK : SENDFILLREQ;
   assign waittlb_next_state_cache = waittlb_cache_miss ? waittlb_next_state_cache_miss : READY;
@@ -447,8 +451,7 @@ module ysyx_25030067_dwrapper (
 
   assign dcache_rvalid_o = hit_read_resp || uncache_rvalid ||
                            (fault_resp_valid && !fault_is_write);
-  assign dcache_rdata_o = ({32{uncache_rvalid}} & uncache_rdata) |
-                          ({32{!uncache_rvalid}} & cache_rdata);
+  assign dcache_rdata_o = uncache_rvalid ? uncache_rdata : cache_rdata;
   assign dcache_rresp_o = ({2{uncache_rvalid}} & uncache_rresp) |
                           ({2{!uncache_rvalid && fault_resp_valid && !fault_is_write}} & fault_resp_code) |
                           ({2{!uncache_rvalid && !(fault_resp_valid && !fault_is_write)}} & DATA_OK);
@@ -461,18 +464,14 @@ module ysyx_25030067_dwrapper (
 
   assign d_ptw_req_valid_o = (state == WAITTLB) && !d_ptw_resp_valid_i;
   assign d_ptw_req_vaddr_o = miss_vaddr;
-  assign d_ptw_req_type_o = ({2{req_is_write}} & ACCESS_STORE) |
-                            ({2{!req_is_write}} & ACCESS_LOAD);
+  assign d_ptw_req_type_o = {req_is_write, ~req_is_write};
 
   assign arvalid_o = (state == SENDFILLREQ);
-  assign araddr_o = ({32{miss_uncache}} & miss_paddr[31:0]) |
-                    ({32{!miss_uncache}} &
+  assign araddr_o = miss_uncache ? miss_paddr[31:0] :
                      {miss_paddr[31:`CONFIG_DCACHE_BLOCKS_WIDTH+2],
-                      {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}});
-  assign arlen_o = ({8{miss_uncache}} & 8'b0) |
-                   ({8{!miss_uncache}} & 8'(LINE_LAST));
-  assign arsize_o = ({3{miss_uncache}} & req_size) |
-                    ({3{!miss_uncache}} & 3'b010);
+                      {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}};
+  assign arlen_o = miss_uncache ? 8'b0  : 8'(LINE_LAST);
+  assign arsize_o = miss_uncache ? req_size : 3'b010;
   assign arburst_o = `INCR;
   assign rready_o = (state == WAITFILLRESP);
 
@@ -486,13 +485,15 @@ module ysyx_25030067_dwrapper (
                     ({32{active_main_writeback && miss_uncache}} & miss_paddr[31:0]) |
                     ({32{active_main_writeback && !miss_uncache}} &
                      {wb_tag_reg, wb_index_reg, {`CONFIG_DCACHE_BLOCKS_WIDTH+2{1'b0}}});
-  assign awlen_o = ({8{active_uncache_write}} & 8'b0) |
-                   ({8{!active_uncache_write}} & 8'(LINE_LAST));
-  assign awsize_o = ({3{active_uncache_write}} & req_size) |
-                    ({3{!active_uncache_write}} & 3'b010);
+  assign awlen_o = active_uncache_write ? 8'b0 : 8'(LINE_LAST);
+  assign awsize_o = active_uncache_write ? req_size : 3'b010;
   assign awburst_o = `INCR;
 
-  assign wvalid_o = awvalid_o;
+  assign wvalid_o = (state == WRITEBACK) ||
+                    (state == WAITWREQCOMPLETE && !wdata_handshake_done) ||
+                    ((state == WAITFLUSH) &&
+                     ((flush_state == F_SENDREQ) ||
+                      (flush_state == F_WAITREQCOMPLETE && !wdata_handshake_done)));
   assign wdata_o = ({32{active_flush_writeback}} & fill_wb_word_data) |
                    ({32{active_main_writeback && miss_uncache}} & req_wdata) |
                    ({32{active_main_writeback && !miss_uncache}} & wb_word_data);
@@ -506,18 +507,7 @@ module ysyx_25030067_dwrapper (
 
   assign probe_invalidate = ((state == WAITFLUSH) && (flush_state == F_NEXT) && !flush_line_dirty) ||
                             ((state == WAITFLUSH) && (flush_state == F_WAITRESP) && bvalid_i);
-  assign wait_cache_flush = (state == WAITFLUSH);
-  assign _unused_ok = &{
-    1'b0,
-    satp_i[21:0],
-    mstatus_i[31:20],
-    mstatus_i[16:13],
-    mstatus_i[10:0],
-    miss_paddr[33:32],
-    cache_miss_way,
-    tlb_perm[4],
-    d_ptw_req_ready_i
-  };
+  assign wait_cache_flush = dcache_flush_req || (state == WAITFLUSH);
 
   always @(posedge clock) begin
     if (has_flush_sign) begin
@@ -540,6 +530,16 @@ module ysyx_25030067_dwrapper (
       flush_state <= F_IDLE;
     end else begin
       flush_state <= flush_state_next;
+    end
+  end
+
+  always @(posedge clock) begin
+    if (reset) begin
+      dcache_flush_pending <= 1'b0;
+    end else if (dcache_flush_start) begin
+      dcache_flush_pending <= 1'b0;
+    end else if (dcache_flush && !dcache_flush_start) begin
+      dcache_flush_pending <= 1'b1;
     end
   end
 

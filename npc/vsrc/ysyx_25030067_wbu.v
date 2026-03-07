@@ -62,7 +62,7 @@ module ysyx_25030067_wbu (
 
     wire has_flush_sign;
     always @(posedge clock) begin
-        if (has_flush_sign) begin
+        if (reset) begin
             valid <= 1'b0;
         end else if (lsu_valid_i) begin
             valid <= 1'b1;

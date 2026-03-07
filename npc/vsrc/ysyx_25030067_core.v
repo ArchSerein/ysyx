@@ -18,6 +18,19 @@ module ysyx_25030067_core (
     input   [31:0]              icache_rdata,
     input   [ 1:0]              icache_rresp,
 
+    input                       ptw_arready,
+    output                      ptw_arvalid,
+    output  [31:0]              ptw_araddr,
+    output  [ 1:0]              ptw_arburst,
+    output  [ 7:0]              ptw_arlen,
+    output  [ 2:0]              ptw_arsize,
+
+    input                       ptw_rlast,
+    output                      ptw_rready,
+    input                       ptw_rvalid,
+    input   [31:0]              ptw_rdata,
+    input   [ 1:0]              ptw_rresp,
+
     input                       dcache_arready,
     output  [ 7:0]              dcache_arlen,
     output  [ 2:0]              dcache_arsize,
@@ -57,10 +70,15 @@ module ysyx_25030067_core (
 
     wire [`CSR_DATA_WIDTH-1:0]       csr_mtvec;
     wire [`CSR_DATA_WIDTH-1:0]       csr_mepc;
+    wire [`CSR_DATA_WIDTH-1:0]       csr_mstatus;
+    wire [`CSR_DATA_WIDTH-1:0]       csr_satp;
     wire [`CSR_DATA_WIDTH-1:0]       csr_mepc_w;
     wire [`CSR_DATA_WIDTH-1:0]       csr_mcause_w;
+    reg  [1:0]                       priv_mode;
+    wire                             sfence_vma;
 
     wire                             cache_flush;
+    wire                             cache_flush_req;
     wire                             icache_ready;
 
     wire                             rfu_ready;
@@ -68,10 +86,21 @@ module ysyx_25030067_core (
     wire                             branch_flush;
     wire [31:0]                      branch_target;
     wire [31:0]                      cache_flush_target;
+    wire [31:0]                      cache_flush_target_req;
+    reg  [31:0]                      cache_flush_target_reg;
+    reg                              cache_flush_pending;
+    wire                             cache_flush_fire;
+    wire                             pipeline_drain;
+    reg                              deu_valid_q;
+    reg                              rfu_valid_q;
+    reg                              exu_valid_q;
+    reg                              lsu_valid_q;
 
     wire                             excp_flush;
     wire                             mret_flush;
     wire                             wait_cache_flush;
+    wire                             i_wait_cache_flush;
+    wire                             d_wait_cache_flush;
 
     wire                             ifu_excp_bus;
     wire [ 1:0]                      icu_excp_bus;
@@ -83,6 +112,42 @@ module ysyx_25030067_core (
     wire [`ICU_DEU_BUS_WIDTH-1:0]    icu_deu_bus;
     wire                             icache_valid;
     wire deu_ready;
+    wire                             i_ptw_req_valid;
+    wire                             i_ptw_req_ready;
+    wire [31:0]                      i_ptw_req_vaddr;
+    wire                             i_ptw_resp_valid;
+    wire [21:0]                      i_ptw_resp_ppn;
+    wire [6:0]                       i_ptw_resp_perm;
+    wire                             i_ptw_resp_level;
+    wire                             i_ptw_page_fault;
+    wire                             i_ptw_access_fault;
+
+    wire                             d_ptw_req_valid;
+    wire                             d_ptw_req_ready;
+    wire [31:0]                      d_ptw_req_vaddr;
+    wire [1:0]                       d_ptw_req_type;
+    wire                             d_ptw_resp_valid;
+    wire [21:0]                      d_ptw_resp_ppn;
+    wire [6:0]                       d_ptw_resp_perm;
+    wire                             d_ptw_resp_level;
+    wire                             d_ptw_page_fault;
+    wire                             d_ptw_access_fault;
+    wire [1:0]                       ptw_grant;
+    wire                             i_ptw_grant;
+    wire                             d_ptw_grant;
+    wire                             ptw_req_valid;
+    wire                             ptw_req_ready;
+    wire [31:0]                      ptw_req_vaddr;
+    wire [1:0]                       ptw_req_type;
+    wire                             ptw_req_source;
+    wire                             ptw_resp_valid;
+    wire [21:0]                      ptw_resp_ppn;
+    wire [6:0]                       ptw_resp_perm;
+    wire                             ptw_resp_level;
+    wire                             ptw_page_fault;
+    wire                             ptw_access_fault;
+    reg                              ptw_busy;
+    reg                              ptw_owner;
 
     wire [`DEU_RFU_BUS_WIDTH-1:0] deu_rfu_bus;
     wire deu_valid;
@@ -148,6 +213,121 @@ module ysyx_25030067_core (
     wire          exu_br_taken;
     wire [31: 0]  predict_pc;
 
+    wire [1:0]                       mstatus_mpp;
+
+    assign mstatus_mpp = csr_mstatus[12:11];
+    // TODO:
+    // The TLB refresh logic requires refinement. The instructions for sfence.vma
+    // and related control signals can be left blank for now; they will be implemented
+    // when relevant instructions are added in the future.
+    assign sfence_vma = 1'b0;
+    assign pipeline_drain = !deu_valid_q && !rfu_valid_q &&
+                            !exu_valid_q && !lsu_valid_q;
+    assign cache_flush_fire = cache_flush_pending && pipeline_drain;
+    assign cache_flush = cache_flush_fire;
+    assign cache_flush_target = cache_flush_target_reg;
+    assign wait_cache_flush = i_wait_cache_flush | d_wait_cache_flush |
+                              cache_flush_pending;
+    assign i_ptw_grant = ptw_grant[0];
+    assign d_ptw_grant = ptw_grant[1];
+    assign ptw_req_valid = ({1{i_ptw_grant}} & i_ptw_req_valid) |
+                           ({1{d_ptw_grant}} & d_ptw_req_valid);
+    assign ptw_req_vaddr = ({32{i_ptw_grant}} & i_ptw_req_vaddr) |
+                           ({32{d_ptw_grant}} & d_ptw_req_vaddr);
+    assign ptw_req_type = ({2{i_ptw_grant}} & 2'b00) |
+                          ({2{d_ptw_grant}} & d_ptw_req_type);
+    assign ptw_req_source = d_ptw_grant;
+    assign i_ptw_req_ready = i_ptw_grant && !ptw_busy && ptw_req_ready;
+    assign d_ptw_req_ready = d_ptw_grant && !ptw_busy && ptw_req_ready;
+    assign i_ptw_resp_valid = ptw_resp_valid && !ptw_owner;
+    assign d_ptw_resp_valid = ptw_resp_valid && ptw_owner;
+    assign i_ptw_resp_ppn = ptw_resp_ppn;
+    assign d_ptw_resp_ppn = ptw_resp_ppn;
+    assign i_ptw_resp_perm = ptw_resp_perm;
+    assign d_ptw_resp_perm = ptw_resp_perm;
+    assign i_ptw_resp_level = ptw_resp_level;
+    assign d_ptw_resp_level = ptw_resp_level;
+    assign i_ptw_page_fault = ptw_page_fault;
+    assign d_ptw_page_fault = ptw_page_fault;
+    assign i_ptw_access_fault = ptw_access_fault;
+    assign d_ptw_access_fault = ptw_access_fault;
+
+    always @(posedge clock) begin
+      if (reset || excp_flush) begin
+        priv_mode <= 2'b11;
+      end else if (mret_flush) begin
+        priv_mode <= mstatus_mpp;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        ptw_busy <= 1'b0;
+      end else if (!ptw_busy && ptw_req_valid && ptw_req_ready) begin
+        ptw_busy <= 1'b1;
+      end else if (ptw_resp_valid) begin
+        ptw_busy <= 1'b0;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        ptw_owner <= 1'b0;
+      end else if (!ptw_busy && ptw_req_valid && ptw_req_ready) begin
+        ptw_owner <= d_ptw_grant;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        deu_valid_q <= 1'b0;
+      end else begin
+        deu_valid_q <= deu_valid;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        rfu_valid_q <= 1'b0;
+      end else begin
+        rfu_valid_q <= rfu_valid;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        exu_valid_q <= 1'b0;
+      end else begin
+        exu_valid_q <= exu_valid;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        lsu_valid_q <= 1'b0;
+      end else begin
+        lsu_valid_q <= lsu_valid;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset || excp_flush || mret_flush || branch_flush) begin
+        cache_flush_pending <= 1'b0;
+      end else if (cache_flush_fire) begin
+        cache_flush_pending <= 1'b0;
+      end else if (cache_flush_req) begin
+        cache_flush_pending <= 1'b1;
+      end
+    end
+
+    always @(posedge clock) begin
+      if (reset) begin
+        cache_flush_target_reg <= 32'b0;
+      end else if (cache_flush_req) begin
+        cache_flush_target_reg <= cache_flush_target_req;
+      end
+    end
+
     ysyx_25030067_bpu ysyx_25030067_bpu_module (
       .clock              (clock),
       .reset              (reset),
@@ -203,39 +383,91 @@ module ysyx_25030067_core (
         .valid_o        (ifu_valid)
     );
 
-    ysyx_25030067_icache ysyx_25030067_icache_module (
+    ysyx_25030067_iwrapper ysyx_25030067_iwrapper_module (
       .clock            (clock),
       .reset            (reset),
 
-      .excp_flush       (excp_flush),
-      .mret_flush       (mret_flush),
-
-      .ready_o          (icache_ready),
       .ifu_valid_i      (ifu_valid),
       .ifu_icu_bus_i    (ifu_icu_bus),
       .ifu_excp_bus_i   (ifu_excp_bus),
-
-      .wait_cache_flush (wait_cache_flush),
-      .branch_flush     (branch_flush),
-      .icache_flush     (cache_flush),
-
-      .valid_o          (icache_valid),
+      .ready_o          (icache_ready),
       .icu_deu_bus_o    (icu_deu_bus),
       .icu_excp_bus_o   (icu_excp_bus),
+      .valid_o          (icache_valid),
       .deu_ready_i      (deu_ready),
 
-      .icache_arready_i (icache_arready),
-      .icache_arvalid_o (icache_arvalid),
-      .icache_araddr_o  (icache_araddr),
-      .icache_arburst_o (icache_arburst),
-      .icache_arlen_o   (icache_arlen),
-      .icache_arsize_o  (icache_arsize),
+      .excp_flush       (excp_flush),
+      .mret_flush       (mret_flush),
+      .branch_flush     (branch_flush),
+      .icache_flush     (cache_flush),
+      .wait_cache_flush (i_wait_cache_flush),
 
-      .icache_rlast_i   (icache_rlast),
-      .icache_rvalid_i  (icache_rvalid),
-      .icache_rdata_i   (icache_rdata),
-      .icache_rresp_i   (icache_rresp),
-      .icache_rready_o  (icache_rready)
+      .i_ptw_req_valid_o(i_ptw_req_valid),
+      .i_ptw_req_ready_i(i_ptw_req_ready),
+      .i_ptw_req_vaddr_o(i_ptw_req_vaddr),
+      .i_ptw_resp_valid_i(i_ptw_resp_valid),
+      .i_ptw_resp_ppn_i (i_ptw_resp_ppn),
+      .i_ptw_resp_perm_i(i_ptw_resp_perm),
+      .i_ptw_resp_level_i(i_ptw_resp_level),
+      .i_ptw_page_fault_i(i_ptw_page_fault),
+      .i_ptw_access_fault_i(i_ptw_access_fault),
+
+      .satp_i           (csr_satp),
+      .mstatus_i        (csr_mstatus),
+      .priv_mode_i      (priv_mode),
+      .sfence_vma_i     (sfence_vma),
+
+      .arvalid_o        (icache_arvalid),
+      .arready_i        (icache_arready),
+      .araddr_o         (icache_araddr),
+      .arlen_o          (icache_arlen),
+      .arsize_o         (icache_arsize),
+      .arburst_o        (icache_arburst),
+
+      .rvalid_i         (icache_rvalid),
+      .rdata_i          (icache_rdata),
+      .rresp_i          (icache_rresp),
+      .rlast_i          (icache_rlast),
+      .rready_o         (icache_rready)
+    );
+
+    ysyx_25030067_arbiter #(
+      .MASTER(2)
+    ) u_ptw_arbiter (
+      .clock            (clock),
+      .reset            (reset),
+      .rreq_i           ({d_ptw_req_valid, i_ptw_req_valid}),
+      .grant_o          (ptw_grant)
+    );
+
+    ysyx_25030067_ptw u_ptw (
+      .clock            (clock),
+      .reset            (reset),
+      .ptw_req_valid_i  (ptw_req_valid),
+      .ptw_req_ready_o  (ptw_req_ready),
+      .ptw_req_vaddr_i  (ptw_req_vaddr),
+      .ptw_req_type_i   (ptw_req_type),
+      .ptw_req_source_i (ptw_req_source),
+      .ptw_resp_valid_o (ptw_resp_valid),
+      .ptw_resp_ppn_o   (ptw_resp_ppn),
+      .ptw_resp_perm_o  (ptw_resp_perm),
+      .ptw_resp_level_o (ptw_resp_level),
+      .ptw_page_fault_o (ptw_page_fault),
+      .ptw_access_fault_o(ptw_access_fault),
+      .satp_i           (csr_satp),
+      .mstatus_i        (csr_mstatus),
+      .priv_mode_i      (priv_mode),
+      .arvalid_o        (ptw_arvalid),
+      .arready_i        (ptw_arready),
+      .araddr_o         (ptw_araddr),
+      .arsize_o         (ptw_arsize),
+      .arlen_o          (ptw_arlen),
+      .arburst_o        (ptw_arburst),
+      .rvalid_i         (ptw_rvalid),
+      .rdata_i          (ptw_rdata),
+      .rresp_i          (ptw_rresp),
+      .rlast_i          (ptw_rlast),
+      .rready_o         (ptw_rready)
     );
 
     ysyx_25030067_deu ysyx_25030067_deu_module (
@@ -254,8 +486,8 @@ module ysyx_25030067_core (
         .deu_excp_bus_o (deu_excp_bus),
 
         .cache_flush_target
-                        (cache_flush_target),
-        .cache_flush    (cache_flush),
+                        (cache_flush_target_req),
+        .cache_flush    (cache_flush_req),
         .branch_flush   (branch_flush),
         .wait_cache_flush
                         (wait_cache_flush),
@@ -348,17 +580,14 @@ module ysyx_25030067_core (
         .valid_o        (exu_valid)
     );
 
-    ysyx_25030067_dcache ysyx_25030067_dcache_module (
+    ysyx_25030067_dwrapper ysyx_25030067_dwrapper_module (
         .clock                (clock),
         .reset                (reset),
 
-        // NOTE:
-        // exu <--- dcache ---> lsu
         .exu_arvalid_i        (exu_arvalid),
         .dcache_arready_o     (exu_arready),
         .exu_arsize_i         (exu_arsize),
         .exu_araddr_i         (exu_araddr),
-
         .dcache_rdata_o       (lsu_rdata),
         .dcache_rvalid_o      (lsu_rvalid),
         .dcache_rresp_o       (lsu_rresp),
@@ -368,50 +597,62 @@ module ysyx_25030067_core (
         .dcache_awready_o     (exu_awready),
         .exu_awaddr_i         (exu_awaddr),
         .exu_awsize_i         (exu_awsize),
-
         .exu_wvalid_i         (exu_wvalid),
         .dcache_wready_o      (exu_wready),
         .exu_wdata_i          (exu_wdata),
         .exu_wstrb_i          (exu_wstrb),
-
         .dcache_bresp_o       (lsu_bresp),
         .dcache_bvalid_o      (lsu_bvalid),
         .lsu_bready_i         (lsu_bready),
 
         .dcache_flush         (cache_flush),
-        .wait_cache_flush     (wait_cache_flush),
+        .wait_cache_flush     (d_wait_cache_flush),
 
-        // NOTE:
-        // dcache <----> memory
-        .dcache_arready_i     (dcache_arready),
-        .dcache_arlen_o       (dcache_arlen),
-        .dcache_arsize_o      (dcache_arsize),
-        .dcache_arburst_o     (dcache_arburst),
-        .dcache_arvalid_o     (dcache_arvalid),
-        .dcache_araddr_o      (dcache_araddr),
+        .d_ptw_req_valid_o    (d_ptw_req_valid),
+        .d_ptw_req_ready_i    (d_ptw_req_ready),
+        .d_ptw_req_vaddr_o    (d_ptw_req_vaddr),
+        .d_ptw_req_type_o     (d_ptw_req_type),
+        .d_ptw_resp_valid_i   (d_ptw_resp_valid),
+        .d_ptw_resp_ppn_i     (d_ptw_resp_ppn),
+        .d_ptw_resp_perm_i    (d_ptw_resp_perm),
+        .d_ptw_resp_level_i   (d_ptw_resp_level),
+        .d_ptw_page_fault_i   (d_ptw_page_fault),
+        .d_ptw_access_fault_i (d_ptw_access_fault),
 
-        .dcache_rvalid_i      (dcache_rvalid),
-        .dcache_rdata_i       (dcache_rdata),
-        .dcache_rresp_i       (dcache_rresp),
-        .dcache_rlast_i       (dcache_rlast),
-        .dcache_rready_o      (dcache_rready),
+        .satp_i               (csr_satp),
+        .mstatus_i            (csr_mstatus),
+        .priv_mode_i          (priv_mode),
+        .sfence_vma_i         (sfence_vma),
 
-        .dcache_awready_i     (dcache_awready),
-        .dcache_awvalid_o     (dcache_awvalid),
-        .dcache_awaddr_o      (dcache_awaddr),
-        .dcache_awlen_o       (dcache_awlen),
-        .dcache_awsize_o      (dcache_awsize),
-        .dcache_awburst_o     (dcache_awburst),
+        .arvalid_o            (dcache_arvalid),
+        .arready_i            (dcache_arready),
+        .araddr_o             (dcache_araddr),
+        .arlen_o              (dcache_arlen),
+        .arsize_o             (dcache_arsize),
+        .arburst_o            (dcache_arburst),
 
-        .dcache_wready_i      (dcache_wready),
-        .dcache_wvalid_o      (dcache_wvalid),
-        .dcache_wdata_o       (dcache_wdata),
-        .dcache_wstrb_o       (dcache_wstrb),
-        .dcache_wlast_o       (dcache_wlast),
+        .rvalid_i             (dcache_rvalid),
+        .rdata_i              (dcache_rdata),
+        .rresp_i              (dcache_rresp),
+        .rlast_i              (dcache_rlast),
+        .rready_o             (dcache_rready),
 
-        .dcache_bvalid_i      (dcache_bvalid),
-        .dcache_bready_o      (dcache_bready),
-        .dcache_bresp_i       (dcache_bresp)
+        .awvalid_o            (dcache_awvalid),
+        .awready_i            (dcache_awready),
+        .awaddr_o             (dcache_awaddr),
+        .awlen_o              (dcache_awlen),
+        .awsize_o             (dcache_awsize),
+        .awburst_o            (dcache_awburst),
+
+        .wvalid_o             (dcache_wvalid),
+        .wready_i             (dcache_wready),
+        .wdata_o              (dcache_wdata),
+        .wstrb_o              (dcache_wstrb),
+        .wlast_o              (dcache_wlast),
+
+        .bvalid_i             (dcache_bvalid),
+        .bready_o             (dcache_bready),
+        .bresp_i              (dcache_bresp)
     );
 
     ysyx_25030067_lsu ysyx_25030067_lsu_module (
@@ -499,6 +740,8 @@ module ysyx_25030067_core (
         .csr_mepc_i     (csr_mepc_w),
         .csr_mcause_i   (csr_mcause_w),
 
+        .csr_mstatus_o  (csr_mstatus),
+        .csr_satp_o     (csr_satp),
         .csr_rdata_o    (csr_value)
     );
 

@@ -203,7 +203,8 @@ module ysyx_25030067_rfu (
                            ({32{rs2_sel_lsu}}     & lsu_forward_data)     |
                            ({32{rs2_sel_wbu}}     & wbu_forward_data)     |
                            ({32{rs2_sel_reg}}     & rfu_rs2_value_i);
-    assign stall =  (exu_stall | lsu_stall | wbu_stall) || wait_cache_flush  ||
+    assign stall =  (exu_stall | lsu_stall | wbu_stall) ||
+                    (wait_cache_flush && !valid) ||
                     (exu_valid && (exu_csr_addr == rfu_csr_addr)) ||
                     (lsu_valid && (lsu_csr_addr == rfu_csr_addr)) ||
                     (wbu_valid && (wbu_csr_addr == rfu_csr_addr));
