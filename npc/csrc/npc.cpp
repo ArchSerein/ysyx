@@ -55,10 +55,10 @@ void open_trace_wave(uint32_t pc) {
     }
 }
 void close_trace_wave(uint32_t pc) {
-    // if (is_open_trace_wave && pc == WAVE_PC_END) {
-    //     is_open_trace_wave = false;
-    //     Log("close trace wave");
-    // }
+    if (is_open_trace_wave && pc == CONFIG_WAVE_PC_END) {
+        is_open_trace_wave = false;
+        Log("close trace wave");
+    }
 }
 #endif // CONFIG_TRACE_WAVE
     
