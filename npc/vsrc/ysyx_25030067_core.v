@@ -185,6 +185,7 @@ module ysyx_25030067_core (
     wire          exu_awvalid;
     wire          exu_wvalid;
     wire          exu_arready;
+    wire          exu_arready_raw;
     wire          exu_awready;
     wire          exu_wready;
     wire          lsu_rvalid;
@@ -200,6 +201,18 @@ module ysyx_25030067_core (
     wire  [ 3: 0] exu_wstrb;
     wire  [ 1: 0] lsu_rresp;
     wire  [ 1: 0] lsu_bresp;
+    wire          sb_issue_awvalid;
+    wire          sb_issue_awready;
+    wire  [31: 0] sb_issue_awaddr;
+    wire  [ 2: 0] sb_issue_awsize;
+    wire          sb_issue_wvalid;
+    wire          sb_issue_wready;
+    wire  [31: 0] sb_issue_wdata;
+    wire  [ 3: 0] sb_issue_wstrb;
+    wire          store_pending;
+    wire          store_commit;
+    wire          lsu_has_excp;
+    wire          has_flush_sign;
 
     wire          rf_we;
     wire          csr_we;
@@ -237,6 +250,13 @@ module ysyx_25030067_core (
     assign ptw_req_type = ({2{i_ptw_grant}} & 2'b00) |
                           ({2{d_ptw_grant}} & d_ptw_req_type);
     assign ptw_req_source = d_ptw_grant;
+    assign exu_arready = exu_arready_raw && !store_pending;
+    assign lsu_bvalid = lsu_bready;
+    assign lsu_bresp = 2'b00;
+    assign lsu_has_excp = |lsu_excp_bus;
+    assign has_flush_sign = excp_flush | mret_flush;
+    assign store_commit = lsu_valid && lsu_bready && !lsu_has_excp &&
+                          !excp_flush && !mret_flush;
     assign i_ptw_req_ready = i_ptw_grant && !ptw_busy && ptw_req_ready;
     assign d_ptw_req_ready = d_ptw_grant && !ptw_busy && ptw_req_ready;
     assign i_ptw_resp_valid = ptw_resp_valid && !ptw_owner;
@@ -580,12 +600,39 @@ module ysyx_25030067_core (
         .valid_o        (exu_valid)
     );
 
+    ysyx_25030067_store_buffer ysyx_25030067_store_buffer_module (
+        .clock          (clock),
+        .reset          (reset),
+        .has_flush_i    (has_flush_sign),
+
+        .exu_awvalid_i  (exu_awvalid),
+        .exu_awready_o  (exu_awready),
+        .exu_awaddr_i   (exu_awaddr),
+        .exu_awsize_i   (exu_awsize),
+        .exu_wvalid_i   (exu_wvalid),
+        .exu_wready_o   (exu_wready),
+        .exu_wdata_i    (exu_wdata),
+        .exu_wstrb_i    (exu_wstrb),
+
+        .store_commit_i (store_commit),
+
+        .issue_awvalid_o(sb_issue_awvalid),
+        .issue_awready_i(sb_issue_awready),
+        .issue_awaddr_o (sb_issue_awaddr),
+        .issue_awsize_o (sb_issue_awsize),
+        .issue_wvalid_o (sb_issue_wvalid),
+        .issue_wready_i (sb_issue_wready),
+        .issue_wdata_o  (sb_issue_wdata),
+        .issue_wstrb_o  (sb_issue_wstrb),
+        .store_pending_o(store_pending)
+    );
+
     ysyx_25030067_dwrapper ysyx_25030067_dwrapper_module (
         .clock                (clock),
         .reset                (reset),
 
-        .exu_arvalid_i        (exu_arvalid),
-        .dcache_arready_o     (exu_arready),
+        .exu_arvalid_i        (exu_arvalid & (~store_pending)),
+        .dcache_arready_o     (exu_arready_raw),
         .exu_arsize_i         (exu_arsize),
         .exu_araddr_i         (exu_araddr),
         .dcache_rdata_o       (lsu_rdata),
@@ -593,17 +640,17 @@ module ysyx_25030067_core (
         .dcache_rresp_o       (lsu_rresp),
         .lsu_rready_i         (lsu_rready),
 
-        .exu_awvalid_i        (exu_awvalid),
-        .dcache_awready_o     (exu_awready),
-        .exu_awaddr_i         (exu_awaddr),
-        .exu_awsize_i         (exu_awsize),
-        .exu_wvalid_i         (exu_wvalid),
-        .dcache_wready_o      (exu_wready),
-        .exu_wdata_i          (exu_wdata),
-        .exu_wstrb_i          (exu_wstrb),
-        .dcache_bresp_o       (lsu_bresp),
-        .dcache_bvalid_o      (lsu_bvalid),
-        .lsu_bready_i         (lsu_bready),
+        .exu_awvalid_i        (sb_issue_awvalid),
+        .dcache_awready_o     (sb_issue_awready),
+        .exu_awaddr_i         (sb_issue_awaddr),
+        .exu_awsize_i         (sb_issue_awsize),
+        .exu_wvalid_i         (sb_issue_wvalid),
+        .dcache_wready_o      (sb_issue_wready),
+        .exu_wdata_i          (sb_issue_wdata),
+        .exu_wstrb_i          (sb_issue_wstrb),
+        .dcache_bresp_o       (),
+        .dcache_bvalid_o      (),
+        .lsu_bready_i         (1'b1),
 
         .dcache_flush         (cache_flush),
         .wait_cache_flush     (d_wait_cache_flush),
