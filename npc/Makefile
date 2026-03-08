@@ -51,7 +51,13 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 CXXFLAGS += $(shell llvm-config --cxxflags)
+ifeq ($(CONFIG_CC_ASAN), y)
+	CXXFLAGS += -fsanitize=address
+endif
 LDFLAGS += -lreadline $(shell llvm-config --libs)
+ifeq ($(CONFIG_CC_ASAN), y)
+	LDFLAGS += -fsanitize=address
+endif
 
 -include $(NPC_HOME)/.config
 ifeq ($(CONFIG_DIFFTEST), y)

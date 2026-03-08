@@ -16,7 +16,7 @@ bool is_skip_ref = false;
 bool is_raise_intr = false;
 uint32_t no = 0x0;
 
-extern uint32_t register_file[37];
+extern uint32_t register_file[39];
 
 static bool isa_difftest_checkregs(uint32_t *ref, vaddr_t pc, vaddr_t ref_pc)
 {
@@ -93,7 +93,7 @@ void difftest_skip_ref_exec();
 void
 difftest_step(vaddr_t pc)
 {
-    uint32_t ref_r[37];
+    uint32_t ref_r[39];
     if (is_skip_ref) {
         ref_difftest_regcpy(ref_r, DIFFTEST_TO_DUT);
         uint32_t ref_pc = ref_r[32];

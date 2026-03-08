@@ -18,7 +18,7 @@ static TOP_NAME top;
 
 uint32_t deu_inst;
 uint32_t wbu_pc;
-uint32_t register_file[37];
+uint32_t register_file[39];
 int e = 0;
 int64_t inst_cnt = 0;
 int64_t cycle_cnt = 0;
@@ -197,6 +197,8 @@ update_register_array()
     register_file[34] = get_csr_val(0x300);
     register_file[35] = get_csr_val(0x305);
     register_file[36] = get_csr_val(0x342);
+    register_file[37] = get_csr_val(0x180);
+    register_file[38] = get_csr_val(0x340);
 }
 
 uint32_t
@@ -262,6 +264,10 @@ uint32_t get_csr_val(int addr) {
           return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MTVEC;
         case 0x341:
           return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__MEPC;
+        case 0x180:
+          return top.rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__core_module__DOT__ysyx_25030067_csr_module__DOT__SATP;
+        case 0x340:
+          return 0;
         default:
             panic("get_csr_val fault addr: %x", addr);
     }
